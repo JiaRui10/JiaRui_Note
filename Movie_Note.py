@@ -777,3 +777,408 @@ def user_del(id=None):
 <div class="box-body ...">
 ...操作成功
 4）运行测试。
+
+
+
+6-7 	评论-收藏管理
+			评论管理
+1）先插入数据到comment表中。
+2）关联movie表和user表。
+3）在views.py中。
+@admin.route('/comment/list/<int:page>/', methods=['GET'])
+@admin_login_req
+def comment_list(page=None):
+	if page is None:
+		page = 1
+	# 用join()关联movie表和user表
+	# 用filter添加过滤条件
+	page_data = Comment.query.join(
+		Movie
+	).join(
+		User
+	).filter(
+		Movie.id == Comment.movie_id,
+		User.id == Comment.user_id,
+	).order_by(
+		Comment.addtime.desc()
+	).paginate(page=page, per_page=10)
+	return render_template('admin/comment_list.html', page_data=page_data)
+4）在girl.html中。
+<a href="{{ url_for('admin.comment_list', page=1) }}">
+	<i class="..."></i>评论列表
+</a>
+5）在comment_list.html中。
+{% for v in page_data.items %}
+<div class="box-comment">
+                        <img class="img-circle img-sm"
+                             src="{{ url_for('static', filename='uploads/users/' + v.user.face) }}" alt="User Image">
+
+                        <div class="comment-text">
+                                    <span class="username">
+                                        {{ v.user.name }}
+                                        <span class="text-muted pull-right">
+                                            <i class="fa fa-calendar" aria-hidden="true"></i>
+                                            &nbsp;
+                                            {{ v.addtime }}
+                                        </span>
+                                    </span>
+                            关于电影<a>《{{ v.movie.title }}》</a>的评论：{{ v.content }}
+                            <br><a class="label label-danger pull-right">删除</a>
+                        </div>
+                    </div>
+{% endfor %}
+6）运行测试。
+7）在comment_list.html中进行分页显示。
+{% import "ui/admin_page.html" as pg %}
+...
+<div class="box-footer clearfix">
+	{{ pg.page(page_data, 'admin.comment_list') }}
+</div>
+8）运行测试。
+
+	【删除】按钮
+1）在views.py中。
+@admin.route('/comment/del/<int:id>/', methods=['GET'])
+@admin_login_req
+def comment_del(id=None):
+	comment = Comment.query.get_or_404(int(id))
+	db.session.delete(comment)
+	db.session.comment()
+	flash('删除评论成功', 'ok')
+	return redirect(url_for('admin.comment_list', page=1))
+2）在comment_list.html中。添加flash消息闪现。为按钮添加跳转。
+...
+<div class="box-body box-comments">
+{% for msg in get_flashed_messages(category_filter=['ok']) %}
+...操作成功
+
+
+<a href="{{ url_for('admin.comment_del', id=v.id) }}" class="label label-danger pull-right">删除</a>
+3）运行测试。
+
+
+
+			收藏管理
+1）先插入数据到movie_col表中。
+2）在views.py中。
+@admin.route('/moviecol/list/<int:page>/', methods=['GET'])
+@admin_login_req
+def moviecol_list(page=None):
+	if page is None:
+		page = 1
+	page_data = Moviecol.query.join(
+		Movie
+	).join(
+		User
+	).filter(
+		Movie.id == Moviecol.movie_id
+		User.id == Moviecol.user_id
+	).order_by(
+		Moviecol.addtime.desc()
+	).paginate(page=page, per_page=10)
+	return render_template('admin/moviecol_list.html', page_data=page_data)
+3）在grid.html中。
+<a href="{{ url_for('admin.moviecol_list', page=1) }}">
+	<i class="..."></i>收藏列表
+</a>
+4）在moviecol_list.html中。
+{% import "ui/admin_page.html" as pg %}
+...
+{% for v in page_data.items %}
+<tr>
+	<td>{{ v.id }}</td>
+	<td>{{ v.movie.title }}</td>
+	<td>{{ v.user.name }}</td>
+	<td>{{ v.addtime }}</td>
+	<td>
+		<a>...</a>
+	</td>
+</tr>
+{% endfor %}
+...
+<div class="box-footer clearfix">
+	{{ pg.page(page_data, 'admin.moviecol_list') }}
+</div>
+5）运行测试。
+
+	【删除】按钮
+1）在views.py中。
+@admin.route('/moviecol/del/<int:id>/', methods=['GET'])
+@admin_login_req
+def moviecol_del(id=None):
+	moviecol = Moviecol.query.get_or_404(int(id))
+	db.session.delete(moviecol)
+	db.session.commit()
+	flash('删除收藏成功！', 'ok')
+	return redirect(url_for('admin.moviecol_list', page=1))
+2）在moviecol.list.html中添加flash消息闪现。并给按钮添加事件。
+<div class="box-body ...">
+{% for msg in get_flashed_messages(category_filter=['ok']) %}
+...操作成功
+...
+
+<a class="..."  href="{{ url_for('admin.moviecol_del', id=v.id) }}">删除</a>
+3）运行测试。
+
+
+6-8 	修改密码
+1）在forms.py中定义表单。
+class PwdForm(FlaskForm):
+	old_pwd = PasswordField(
+		label='旧密码',
+		validators=[
+			DataRequired('请输入旧密码！')
+		],
+		description='旧密码',
+		render_kw={
+			'class': 'form-control',
+			'placeholder': '请输入旧密码！',
+		}
+	),
+	new_pwd = PasswordField(
+		label='新密码',
+		validators=[
+			DataRequired('请输入新密码！')
+		],
+		description='新密码',
+		render_kw={
+			'class': 'form-control',
+			'placeholder': '请输入新密码！',
+		}
+	),
+	submit = SubmitField(
+		'编辑',
+		render_kw={
+			'class': 'btn btn-primary',
+		}
+	)
+2）在views.py中。
+@admin.route('/pwd/', methods=['GET', 'POST'])
+@admin_login_req
+def pwd():
+	form = PwdForm()
+	return render_template('admin/pwd.html', form=form)
+3）在pwd.html中。
+	method="post"	
+	{{ form.old_pwd.label }}
+	{{ form.old_pwd }}
+	
+	{{ form.new_pwd.label }}
+	{{ form.new_pwd }}
+
+	{{ form.csrf_token }}
+	{{ form.submit }}
+4）在pwd.html中显示错误信息。
+{{ form.old_pwd }}  /  {{ form.new_pwd }} 
+{% for err in form.name.errors %}
+	...{{ err }}...
+{% endfor %}
+5）运行测试。
+			定义密码验证逻辑。
+1）在PwdForm中定义旧密码验证。
+	def validate_old_pwd(self, field):
+		from flask import session
+		pwd = field.data
+		name = session['admin']
+		admin = Admin.query.filter_by(
+			name=name
+		).first()
+		if not admin.check_pwd(pwd):
+			raise ValidationError('旧密码错误！')
+2）运行测试。
+3）在views.py中。
+# 进行数据库的操作
+@admin.route('/pwd/', methods=['GET', 'POST'])
+@admin_login_req
+def pwd():
+	form = PwdForm()
+	if form.validate_on_submit():
+		data = form.data
+		admin = Admin.query.filter_by(name=session['admin']).first()
+		from werkzeug.security import generate_password_hash
+		admin.pwd = generate_password_hash(data['new_pwd'])
+		db.session.add(admin)
+		db.session.commit()
+		flash('修改密码成功， 请重新登录！', 'ok')    # 这份flash会在login.html中提示
+		redirect(url_for('admin.logout'))
+	return render_template('admin/pwd.html', form=form)
+4）在login.html中。统一好两份flash提示：'ok'、'err'
+5）在admin.html中。
+<span class="hidden-xs">{{ session['admin'] }}</span>
+...
+{{ session['admin'] }}
+<small>2017-06-01</small>
+...
+用户XXX  →   用户{{ session['admin'] }}
+
+
+
+6-9 	日志管理
+1）改变后台页面右上角的时间
+在view.py中。
+# 上下文应用处理器：封装全局变量
+@admin.context_processor
+def tpl_extra():
+	data = dict(
+		online_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+	)
+	return data
+2）在admin.html中。
+<small>{{ online_time }}<small>
+3）运行测试。
+
+
+	【操作日志列表】
+1）注意登录成功之后，应该将admin_id也一同保存。退出的时候要删除
+在views.py中。
+...
+def login():
+	...
+	session['admin'] = data['account']
+	session['admin_id'] = admin_id
+	...
+
+def logout():
+	...
+	session.pop('admin_id', None)
+2）当数据有改动，应该将改动写入日志
+在views.py中。
+...
+def tag_add():
+	...
+	flash('添加标签成功！', 'ok')
+	oplog = Oplog(
+		admin_id=session['admin_id'],
+		ip=request.remote_addr,
+		reason='添加标签{}'.format(data['name'])
+	)
+	db.session.add(oplog)
+	...
+3）运行测试。在tag_add.html页面中添加标签。并查看数据表oplog。
+
+4）将操作日志体现出来。
+在views.py中。
+@admin.route('/oplog/list/<int:page>/', methods=['GET'])
+@admin_login_req
+def oplog_list(page=None):
+	if page is None:
+		page = 1
+	page_data = Oplog.query.join(
+		Admin
+	).filter(
+		Admin.id == Oplog.admin_id,
+	).order_by(
+		Oplog.addtime.desc()
+	).paginate(page=page, per_page=10)
+	return render_template('admin/oplog_list.html', page_data=page_data)
+5）在oplog_list.html进行分页显示。
+{% import "ui/admin_page.html" as pg %}
+...
+{% for v in page_data.items %}
+<tr>
+	<td>{{ v.id }}</td>
+	<td>{{ v.admin.name }}</td>
+	<td>{{ v.addtime }}</td>
+	<td>{{ v.reason }}</td>
+	<td>{{ v.ip }}</td>
+</tr>
+{% endfor %}
+...
+<div class="box-footer clearfix">
+	{{ pg.page(page_data, 'admin.oplog_list') }}
+</div>
+6）修改grid.html。
+<a href="{{ url_for('admin.oplog_list', page=1) }}">
+	<i class="..."></i>操作日志列表
+</a>
+7）运行测试。
+
+
+	【管理员登录日志列表】
+1）在login()视图函数中记录管理登录情况。
+def login():
+	...
+	session['admin_id'] = admin.id
+	adminlog = Adminlog(
+		admin_id=admin.id
+		ip=request.remote_addr,
+	)
+	db.session.add(adminlog)
+	db.session.commit()
+2）运行测试。反复登录、退出。再查看adminlog表。
+3）进行数据展示。
+在views.py中。
+@admin.route('/adminloginlog/list/<int:page>/', methods=['GET'])
+@admin_login_req
+def adminloginlog_list(page=None):
+	if page is None:
+		page = 1
+	page_data = Adminlog.query.join(
+		Admin
+	).filter(
+		Admin.id == Adminlog.admin_id,
+	).order_by(
+		Adminlog.addtime.desc()
+	).paginate(page=page, per_page=10)
+	return render_template('admin/adminloginlog_list.html', page_data=page_data)
+4）在adminloginlog_list.html中。
+{% import "ui/admin_page.html" as pg %}
+...
+{% for v in page_data.items %}
+<tr>
+	<td>{{ v.id }}</td>
+	<td>{{ v.admin.name }}</td>
+	<td>{{ v.addtime }}</td>
+	<td>{{ v.ip }}</td>
+</tr>
+{% endfor %}
+...
+<div class="box-footer clearfix">
+	{{ pg.page(page_data, 'admin.adminloginlog_list') }}
+</div>
+5）修改grid.html的代码拷贝进来。
+<a href="{{ url_for('admin.adminloginlog_list', page=1) }}">
+	<i class="..."></i>管理员登录日志列表
+</a>
+6）运行测试。
+
+
+
+
+	【会员登录日志列表】
+1）往userlog这个表插入一些测试数据。
+2）进行列表展示。
+@admin.route('/userloginlog/list/<int:page>/', methods=['GET'])
+@admin_login_req
+def userloginlog_list(page=None):
+	if page is None:
+		page = 1
+	page_data = Userlog.query.join(
+		User
+	).filter(
+		User.id == Userlog.user_id,
+	).order_by(
+		Userlog.addtime.desc()
+	).paginate(page=page, per_page=10)
+	return render_template('admin/userloginlog_list.html', page_data=page_data)
+3）修改grid.html的代码。
+<a href="{{ url_for('admin.userloginlog_list', page=1) }}">
+	<i class="..."></i>会员登录日志列表
+</a>
+4）在userloginlog_list.html中分页展示。
+{% import "ui/admin_page.html" as pg %}
+...
+{% for v in page_data.items %}
+<tr>
+	<td>{{ v.id }}</td>
+	<td>{{ v.user.name }}</td>
+	<td>{{ v.addtime }}</td>
+	<td>{{ v.ip }}</td>
+</tr>
+{% endfor %}
+...
+<div class="box-footer clearfix">
+	{{ pg.page(page_data, 'admin.userloginlog_list') }}
+</div>
+5）运行测试。
+
