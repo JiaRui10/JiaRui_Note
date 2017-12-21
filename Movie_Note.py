@@ -1518,3 +1518,547 @@ def role_edit(id=None):
 		flash('修改角色成功！', 'ok')
 
 	return render_template('admin/role_edit.html', form=form, fole=role)
+
+
+7-3 	管理员管理
+	【添加管理员】
+1）在forms.py中。
+导入模块EqualTo，用于比较两个字段是否相等。
+
+role_list = Role.query.all()
+
+class AdminForm(FlaskForm):
+	name = StringField(
+		label='管理员名称',
+		validators=[
+			DataRequired('请输入管理员名称！'),
+		],
+		description='管理员名称',
+		render_kw={
+			'class': 'form-control',
+			'placeholder': '请输入管理员名称！',
+		},
+	)
+	pwd = PasswordField(
+		label='管理员密码',
+		validators=[
+			DataRequired('请输入管理员密码！'),
+		],
+		description='管理员密码',
+		render_kw={
+			'class': 'form-control',
+			'placeholder': '请输入管理员密码！',
+		},
+	)
+	repwd = PasswordField(
+		label='管理员重复密码',
+		validators=[
+			DataRequired('请输入管理员重复密码！'),
+			EqualTo('pwd', message='两次密码不一致') 	# 注意这里
+		],
+		description='管理员重复密码',
+		render_kw={
+			'class': 'form-control',
+			'placeholder': '请输入管理员重复密码！',
+		},
+	)
+	role_id = SelectField(
+		label='所属角色',
+		coerce=int,
+		choices=[(v.id, v.name) for v in role_list],
+		render_kw={
+			'class': 'form-control'
+		}
+	)
+	submit = SubmitField(
+		'编辑',
+		render_kw={
+			'class': 'btn btn-primary'
+		}
+	)
+2）在views.py中。
+@admin.route('/admin/add/', methods=['GET', 'POST'])
+@admin_login_req
+def admin_add():
+	form = AdminForm()
+	from werkzeug.security import generate_password_hash
+	if form.validate_on_submit():
+		data = form.data
+		admin = Admin(
+			name=data['name'],
+			pwd=generate_password_hash(data['pwd']),
+			role_id=data['role_id'],
+			is_super=1,
+		)
+		db.session.add(admin)
+		db.sesison.commit()
+		flash('添加管理员成功！', 'ok')
+	return render_template('admin/admin_add.html', form=form)
+3）在admin_add.html中。
+添加flash消息闪现。错误提示。
+
+method="post"
+
+	{{  form.name.label }}
+	{{ form.name }}
+
+	{{ form.pwd.label }}
+	{{ form.pwd }}
+
+	{{ form repwd.label }}
+	{{ form.repwd }}
+
+	{{ form role_id.label }}
+	{{ form.role_id }}
+
+	{{ form.csrf_token }}
+	{{ form.submit }}
+4）运行测试。
+
+	【管理员列表】
+1）在views.py中。
+@admin.route('/admin/list/<int:page>/', methods=['GET'])
+@admin_login_req
+def admin_list(page=None):
+	if page is None:
+		page = 1
+	# 主要需要用join进行关联查询
+	page_data = Admin.query.join(
+		Role
+	).filter(
+		Role.id == Admin.role_id
+	).order_by(
+		Admin.addtime.desc()
+	).paginate(page=page, per_page=10)
+	return render_template('admin/admin_list.html', page_data=page_data)
+2）在admin_list.html中。
+将消息闪现拷贝进去。
+
+{% import "ui/admin_page.html" as pg %}
+...
+{% for v in page_data.items %}
+<tr>
+	</td>{{ v.id }}</td>
+	</td>{{ v.name }}</td>
+	{% if v.is_super == 0 %}
+		</td>超级管理员</td>
+	{% else %}
+		</td>普通管理员</td>
+	{% endif %}
+	</td>{{ v.role.name }}</td>
+	</td>{{ v.addtime }}</td>
+</tr>
+{% endfor %}
+...
+{{ pg.page(page_data, 'admin.admin_list') }}
+3）在grid.html中。
+将管理员列表对应的a标签，加上page=1
+ 4）运行测试。
+
+
+7-4 	访问权限控制
+=====================================
+# 定义权限装饰器
+def admin_auth(f):
+	@wraps(f)
+	def decorate_function(*args, **kwargs):
+		# 权限查询
+		abort(404)
+		return f(*args, **kwargs)
+	return decorate_function
+
+# 调用权限装饰器
+@admin_auth
+=====================================
+管理员ID  →  角色  →  权限列表  →  能够访问的路由规则
+
+1）在views.py中。
+# 权限控制装饰器
+def admin_auth(f):
+	@wraps
+	def decorated_function(*args, **kwargs):
+		admin = Admin.query.join(
+			Role
+		).filter(
+			Role.id == Admin.role_id,
+			Admin.id == session['admin_id']
+		).first()
+		auths = admin.role.auths
+		auths = list(map(lambda v: int(v), auths.split(',')))
+		auth_list = Auth.query.all()
+		urls = [v.url for v in auth_list for val in auths if val == v.id]
+		rule = request.url_rule
+		if str(rule) not in urls:
+			abort(404)
+		return f(*args, **kwargs)
+2）给其他需要的路由函数加上装饰器。（登录不需要）
+
+
+
+
+8-1 	会员注册
+1）在home/forms.py中。
+form flask_wtf import FlaskForm
+from wtforms.fields import SubmitField, ...
+form wtforms.validators import DataRequired, EqualTo, Email, Regexp, ValidationError
+
+# 注意name、email、phone要保持唯一性，需要验证唯一性
+from app.models import User
+
+class RegistForm(FlaskForm):
+	name = StringField(
+		label='昵称',
+		validators=[
+			DataRequired('请输入昵称！'),
+		],
+		description='昵称',
+		render_kw={
+			'class': 'form-control input-lg',
+			'placeholder': '请输入昵称！',
+		},
+	)
+	email = StringField(
+		label='邮箱',
+		validators=[
+			DataRequired('请输入邮箱！'),
+			Email('邮箱格式不正确'),  	# 用于验证邮箱
+		],
+		description='邮箱',
+		render_kw={
+			'class': 'form-control input-lg',
+			'placeholder': '请输入邮箱！',
+		},
+	)
+	phone = StringField(
+		label='手机',
+		validators=[
+			DataRequired('请输入手机！'),
+			Regexp('1[3458]\d{9}', message='手机格式不正确！') 	# 用于验证手机格式
+		],
+		description='手机',
+		render_kw={
+			'class': 'form-control input-lg',
+			'placeholder': '请输入手机！',
+		},
+	)
+	pwd = PasswordField(
+		label='密码',
+		validators=[
+			DataRequired('请输入密码！'),
+		],
+		description='密码',
+		render_kw={
+			'class': 'form-control input-lg',
+			'placeholder': '请输入密码！',
+		},
+	)
+	repwd = PasswordField(
+		label='确认密码',
+		validators=[
+			DataRequired('请输入确认密码！'),
+			EqualTo('pwd', message='两次密码不一致！')
+		],
+		description='确认密码',
+		render_kw={
+			'class': 'form-control input-lg',
+			'placeholder': '请输入确认密码！',
+		},
+	)
+	submit = SubmitField(
+		'注册',
+		render_kw={
+			'class': 'btn btn-lg btn-success btn-block',
+		},
+	)
+
+	# 注意name、email、phone要保持唯一性，需要验证唯一性
+	def validate_name(self, field):
+		name = field.data
+		user = User.query.filter_by(name=name).count()
+		if user == 1:
+			raise ValidationError('昵称已经存在！')
+	def validate_email(self, field):
+		email = field.data
+		user = User.query.filter_by(email=email).count()
+		if user == 1:
+			raise ValidationError('邮箱已经存在！')
+	def validate_phone(self, field):
+		phone = field.data
+		user = User.query.filter_by(phone=phone).count()
+		if user == 1:
+			raise ValidationError('手机号码已经存在！')
+2）在home/views.py中。
+@home.route('/regist/', methods=['GET', 'POST'])
+def regist():
+	form = RegistForm()
+	if form.validate_on_submit():
+		data = form.data
+	return render_template('home/regist.html', form=form)
+3）在home/regist.html中。
+method="post"
+	对相关表单进行替换
+	给表单加上错误显示信息
+	加上消息闪现
+4）运行测试。
+5）实现逻辑：
+a、在models.py中的User数据模型，实现密码验证。
+class User(db.Model):
+	...
+	def check_pwd(self, pwd):
+		form werkzeug.security import check_password_hash
+		return check_password_hash(self.pwd, pwd)
+b、在home/views.py中。
+@home.route('/regist/', methods=['GET', 'POST'])
+def regist():
+	form = RegistForm()
+	if form.validate_on_submit():
+		data = form.data
+		user = User(
+			name=data['name'],
+			email=data['email'],
+			phone=data['phone'],
+			pwd=generate_password_hash(data['pwd']),
+			uuid=uuid.uuid4().hex
+		)
+		db.session.add(user)
+		db.session.commit()
+		flash('注册成功', 'ok')
+	return render_template('home/regist.html', form=form)
+6）运行测试。
+
+
+
+8-2 	会员登录
+1）在forms.py中。
+class LoginForm(FlaskForm):
+	name = StringField(
+		label='账号',
+		validators=[
+			DataRequired('请输入账号！'),
+		],
+		description='账号',
+		render_kw={
+			'class': 'form-control input-lg',
+			'placeholder': '请输入账号！',
+		},
+	)
+	pwd = PasswordField(
+		label='密码',
+		validators=[
+			DataRequired('请输入密码！')
+		],
+		description='密码',
+		render_kw={
+			'class': 'form-control input-lg',
+			'placeholder': '请输入密码！',
+		}
+	)
+	submit = SubmitField(
+		'登录',
+		render_kw={
+			'class': 'btn btn-lg btn-primary btn-block',
+		},
+	)
+2）在views.py中。
+@home.route('/login/', methods=['GET', 'POST'])
+def login():
+	form = LoginForm()
+	if form.validate_on_submit():
+		data = form.data
+	return render_template('home/login.html', form=form)
+3）在login.html中。
+method="post"
+	对相关表单进行替换
+	给表单加上错误显示信息
+	加上消息闪现
+4）运行测试。
+5）完成登录操作。
+@home.route('/login/', methods=['GET', 'POST'])
+def login():
+	form = LoginForm()
+	if form.validate_on_submit():
+		data = form.data
+		user = User.query.filter_by(name=data['name']).first()
+		if not user.check_pwd(data['pwd']):
+			flash('密码错误！', 'err')
+			return redirect(url_for('home.login'))
+		session['user'] = user.name
+		session['user_id'] = user.id
+		userlog = Userlog(
+			user_id=user.id,
+			ip=request.remote_addr
+		)
+		db.session.add(userlog)
+		db.session.commit()
+		return redirect(url_for('home.user'))
+	return render_template('home/login.html', form=form)
+6）运行测试。
+7）注销。
+@home.route('/logout/')
+def logout():
+	session.pop('user', None)
+	session.pop('user_id', None)
+	return redirect(url_for('home.login'))
+8）定义登录装饰器。
+from functools import wraps
+
+def user_login_req(f):
+	@wraps(f)
+	def decorated_function(*args, **kwargs):
+		if 'user' not in session:
+			return redirect(url_for('home.login', next=request.url))
+		return f(*args, **kwargs)
+	return decorated_function
+9）给会员中心的所有路由函数都加上装饰器。
+user、pwd、comments、loginlog、moviecol
+10）运行测试。
+
+
+
+
+8-3 	修改会员资料
+1）在forms.py中。
+from wtforms.field import FileField
+
+class UserdetailForm(FlaskForm):
+	name = StringField(
+		label='名称',
+		validators=[
+			DataRequired('请输入名称！'),
+		],
+		description='名称',
+		render_kw={
+			'class': 'form-control',
+			'placeholder': '请输入名称！',
+		},
+	)
+	email = StringField(
+		label='邮箱',
+		validators=[
+			DataRequired('请输入邮箱！'),
+			Email('邮箱格式不正确'),  	# 用于验证邮箱
+		],
+		description='邮箱',
+		render_kw={
+			'class': 'form-control',
+			'placeholder': '请输入邮箱！',
+		},
+	)
+	phone = StringField(
+		label='手机',
+		validators=[
+			DataRequired('请输入手机！'),
+			Regexp('1[3458]\d{9}', message='手机格式不正确！') 	# 用于验证手机格式
+		],
+		description='手机',
+		render_kw={
+			'class': 'form-control',
+			'placeholder': '请输入手机！',
+		},
+	)
+	face = FileField(
+		label='头像',
+		validators=[
+			DataRequired('请上传头像！'),
+		],
+		description='头像',
+	)
+	info = TextAreaField(
+		label='简介',
+		validators=[
+			DataRequired('请输入简介！'),
+		],
+		description='简介',
+		render_kw={
+			'class': 'form-control',
+			'rows': 10,
+		},
+	)
+	submit = SubmitField(
+		'保存修改',
+		render_kw={
+			'class': 'btn btn-success'
+		}
+	)
+2）在views.py中。
+@home.route('/user/', methods=['GET', 'POST'])
+@user_login_req
+def user():
+	form = UserdetailForm()
+	if form.validate_on_submit():
+		data = form.data
+	return render_template('home/user.html', form=form)
+3）在user.html中。
+method="post" 	enctype="multipart/form-data"
+	添加消息闪现，错误提示。
+	替换表单对应的标签。
+将上传头像的a标签和input标签删除。
+	{{ form.face }}
+	<img ..../>
+	....
+4）运行测试。
+5）在views.py中。
+@home.route('/user/', methods=['GET', 'POST'])
+@user_login_req
+def user():
+	form = UserdetailForm()
+
+	# 设置页面的初始值。
+	user = User.query.get(int(session['user_id']))
+	form.face.validators = []
+	if request.method == 'GET':
+		form.name.data = user.name
+		form.email.data = user.email
+		form.phone.data = user.phone
+		form.info.data = user.info
+
+	if form.validate_on_submit():
+		data = form.data
+	return render_template('home/user.html', form=form, user=user)
+6）显示头像。
+...
+{{ form.face }}
+{% if user.face %}
+	<img  src="{{ url_for('static', filename='uploads/users/' + user.face) }}"  style="width: 100px"/>
+{% else %}
+	<img data-src="..."  />
+{% endif %}
+7）运行测试。
+8）定义上传头像。
+from werkzeug.utils import secure_filename
+
+	if form.validate_on_submit():
+		data = form.data
+		file_face = secure_filename(form.face.data.filename)
+		if not os.path.exists(app.config['FC_DIR']):
+			os.makedirs(app.config['FC_DIR'])
+			os.chmod(app.config['FC_DIR'], 'rw')
+		user.face = change_filename(file_face)
+		form.face.data.save(app.config['FC_DIR'] +  user.face)
+
+		name_count = User.query.filter_by(name=data['name']).count()
+		if data['name'] != user.name and name_count == 1:
+			flash('昵称已经存在！', 'err')
+			return redirect(url_for('home.user'))
+
+		email_count = User.query.filter_by(email=data['email']).count()
+		if data['email'] != user.email and email_count == 1:
+			flash('邮箱已经存在！', 'err')
+			return redirect(url_for('home.user'))
+
+		phone_count = User.query.filter_by(phone=data['phone']).count()
+		if data['phone'] != user.phone and phone_count == 1:
+			flash('手机号码已经存在！', 'err')
+			return redirect(url_for('home.user'))
+
+		user.name = data['name']
+		user.email = data['email']
+		user.phone = data['phone']
+		user.info = data['info']
+		db.session.add(user)
+		db.session.commit()
+		flash('修改成功！', 'ok')
+		return redirect(url_for('home.user'))
+9）在__init__.py中。
+app.config['FC_DIR'] = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static/uploads/users/')
+10）运行测试。
