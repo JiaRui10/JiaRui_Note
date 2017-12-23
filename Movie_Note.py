@@ -2062,3 +2062,599 @@ from werkzeug.utils import secure_filename
 9）在__init__.py中。
 app.config['FC_DIR'] = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static/uploads/users/')
 10）运行测试。
+
+
+8-4 	修改密码
+1）在forms.py中。
+class PwdForm(FlaskForm):
+	old_pwd = PasswordField(
+		label='旧密码',
+		validators=[
+			DataRequired('请输入旧密码！')
+		],
+		description='旧密码',
+		render_kw={
+			'class': 'form-control',
+			'placeholder': '请输入旧密码！',
+		}
+	),
+	new_pwd = PasswordField(
+		label='新密码',
+		validators=[
+			DataRequired('请输入新密码！')
+		],
+		description='新密码',
+		render_kw={
+			'class': 'form-control',
+			'placeholder': '请输入新密码！',
+		}
+	),
+	submit = SubmitField(
+		'修改密码',
+		render_kw={
+			'class': 'btn btn-success',
+		}
+	)
+2）在views.py中。
+@home.route('/pwd/', methods=['GET', 'POST'])
+@user_login_req
+def pwd():
+	form = PwdForm()
+	if form.validate_on_submit():
+		data = form.data
+		user = User.query.filter_by(name=session['user']).first()
+		if not user.check_pwd(data['old_pwd']):
+			flash('旧密码错误！', 'err')
+			return redirect(url_for('home.pwd'))
+		user.pwd = generate_password_hash(data['new_pwd'])
+		db.session.add(user)
+		db.session.commit()
+		flash('修改密码成功，请重新登录！', 'ok')
+		return redirect(url_for('home.logout'))
+	return render_template('home/pwd.html', form=form)
+3）在pwd.html中。
+method="post"
+	将对应的表单进行替换。
+	添加消息闪现，错误提示。
+4）运行测试。
+
+
+
+8-5 	会员登录日志
+1）在views.py中。
+@home.route('/loginlog/<int:page>/', methods=['GET'])
+@user_login_req
+def loginlog(page=None):
+	if page is None:
+		page = 1
+	page_data = Userlog.query.filter_by(
+		user_id=int(session['user_id'])
+	).order_by(
+		Userlog.addtime.desc()
+	).paginate(page=page, per_page=10)
+	return render_template('home/loginlog.html', page_data=page_data)
+2）在loginlog.html中。
+{% for v in page_data.items %}
+<tr>
+	<td>{{ v.id }}</td>
+	<td>{{ v.addtime }}</td>
+	<td>{{ v.ip }}</td>
+</tr>
+{% endfor %]}
+3）在menu.html中。
+...url_for('home.loginlog', page=1)...
+4）运行测试。
+5）实现分页。创建ui/home_page.html。
+将admin_page.html的代码拷贝进来。
+	用userloginlog.html中的nav标签，包裹ul标签。
+	将ul的class改为pagination
+6）loginlog.html中引用。
+{% import "ui/home_page.html" as pg %}
+...
+{{ pg.page(page_data, 'home.loginlog_list') }}
+7）运行测试。
+
+
+
+9-1 	上映预告-标签筛选-电影分页
+	【上映预告】：就是首页的轮播图
+1）在views.py中。
+@home.route('/animation/')
+def animation():
+	data = Preview.query.all()
+	return render_template('home/animation.html', data=data)
+2）在animation.html中。
+<ul>
+	{% for v in data %}
+	<li id="imgCard{{ v.id-1 }}">
+		<a href=""/>......
+		<img src="{{ url_for('static', filename="uploads/"+v.logo) }}" />
+		<p style="...">{{ v.title }}</p>
+	</li>
+	{% endfor %}
+</ul>
+3）运行测试。
+
+
+	【标签筛选】
+1）在views.py中。
+@home.route('/')
+def index():
+	tags = Tag.query.all()
+	# 用request.args获取参数
+	tid = request.args.get('tid', 0)
+	star = request.args.get('star', 0)
+	time = request.args.get('time', 0)
+	pm = request.args.get('pm', 0)
+	cm = request.args.get('cm', 0)
+	return render_template('home/index.html', tags=tags)
+2）在index.html中。
+...
+	<td ...>电影标签</td>
+	...
+	{% for v in tags %}
+		<a ...>{{ v.name }}</a>
+	{% endfor %}
+
+
+	...
+	<td>电影星级</td>
+	<td>
+		{% for v in range(6) %}
+			<a .... {{ v }}星/>
+		{% endfor %}
+	</td>
+3）如何通过电影标签进行筛选呢？
+在views.py中。
+@home.route('/')
+def index():
+	...
+	cm = request.args.get('cm', 0)
+	p = dict(
+		tid=tid,
+		star=star,
+		time=time,
+		pm=pm,
+		cm=cm,
+	)
+	return render_template('home/index.html', tags=tags, p=p)
+4）在index.html中。
+	<td ...>电影标签</td>
+	...
+	{% for v in tags %}
+		<a .href="{{ url_for('home.index') }}?tid={{ v.id }}&star={{ p['star'] }}&time={{ p['time'] }}&pm={{ p['pm'] }}&cm={{ p['cm'] }}"..>{{ v.name }}</a>
+	{% endfor %}
+
+	...
+
+	电影星级
+	<a .href="{{ url_for('home.index') }}?tid={{ p['tid'] }}&star={{ v }}&time={{ p['time'] }}&pm={{ p['pm'] }}&cm={{ p['cm'] }}".
+
+	上映时间
+	<a .href="{{ url_for('home.index') }}?tid={{ p['tid'] }}&star={{ p['star'] }}&time=1&pm={{ p['pm'] }}&cm={{ p['cm'] }}"..
+	<a .href="{{ url_for('home.index') }}?tid={{ p['tid'] }}&star={{ p['star'] }}&time=2&pm={{ p['pm'] }}&cm={{ p['cm'] }}"..
+
+	播放数量
+	<a .href="{{ url_for('home.index') }}?tid={{ p['tid'] }}&star={{ p['star'] }}&time={{ p['time'] }}&pm=1&cm={{ p['cm'] }}"..
+	<a .href="{{ url_for('home.index') }}?tid={{ p['tid'] }}&star={{ p['star'] }}&time={{ p['time'] }}&pm=2&cm={{ p['cm'] }}"..
+
+	评论数量
+	<a .href="{{ url_for('home.index') }}?tid={{ p['tid'] }}&star={{ p['star'] }}&time={{ p['time'] }}&pm={{ p['pm'] }}&cm=1"..
+	<a .href="{{ url_for('home.index') }}?tid={{ p['tid'] }}&star={{ p['star'] }}&time={{ p['time'] }}&pm={{ p['pm'] }}&cm=2"..
+5）运行测试。查看url的变化，主要就是用这个来进行判断。
+
+
+
+	【分页操作】
+1）在views.py中。
+@home.route('/<int:page>', methods=['GET'])
+def index(page=None):
+	if page is None:
+		page = 1
+
+	tags = Tag.query.all()
+	# 用request.args获取参数
+	page_data = Movie.query
+
+	# 标签
+	tid = request.args.get('tid', 0)
+	if int(t.tid) != 0:
+		page_data = page_data.filter_by(tag_id=int(tid))
+
+	# 星级
+	star = request.args.get('star', 0)
+	if int(star) != 0:
+		page_data = page_data.filter_by(star=int(star))
+
+	# 时间
+	time = request.args.get('time', 0)
+	if int(time) != 0:
+		if int(time) == 1:
+			page_data = page_data.order_by(
+				Movie.addtime.desc()
+			)
+		else:
+			page_data = page_data.order_by(
+				Movie.addtime.asc()
+			)
+
+	# 播放量
+	pm = request.args.get('pm', 0)
+	if int(pm) != 0:	
+		if int(pm) == 1:
+			page_data = page_data.order_by(
+				Movie.playnum.desc()
+			)
+		else:
+			page_data = page_data.order_by(
+				Movie.playnum.asc()
+			)
+
+	# 评论量
+	cm = request.args.get('cm', 0)
+	if int(cm) != 0:
+		if int(cm) == 1:
+			page_data = page_data.order_by(
+				Movie.commentnum.desc()
+			)
+		else:
+			page_data = page_data.order_by(
+				Movie.commentnum.asc()
+			)
+
+	# 进行分页操作
+	page = request.args.get('page', 1)
+	page_data = page_data.paginate(page=page, per_page=10)
+
+	p = dict(
+		tid=tid,
+		star=star,
+		time=time,
+		pm=pm,
+		cm=cm,
+	)
+	return render_template('home/index.html', tags=tags, p=p, page_data=page_data)
+2）在index.html、layout.html、home.html中。
+	给所有跳转到home.index的链接都加上：page=1
+3）在index.html中，进行分页的展示。
+{% import "ui/home_page.html" as pg %}
+...
+{% for v in page_data.items %}
+	<img src="{{ url_for('static', filename='uploads/'+v.logo) }}" ...../>
+	{{ v.title }}
+	{% for val in range(1, v.star+1) %}
+	<span class"glyphicon glyphicon-star" ...>
+	{% endfor %}
+	{% for val in range(1, 5-v.star+1) %}
+	<span class"glyphicon glyphicon-star-empty" ...>
+	{% endfor %}
+	# 其他的span标签删除掉
+{% endfor %}
+...
+{{ pg.page(page_data, 'home.index') }}
+
+
+
+
+
+
+9-2 	电影搜索-电影详情
+	【电影搜索、搜索分页】
+1）在home.html和layout.html中。
+# 添加id。去掉href属性。
+<input type="text" class="form-control" placeholder="请输入电影名！" id="key_movie">
+<span class="input-group-btn">
+	<a id="do_search" class="btn btn-default"><span class="glyphicon glyphicon-search">
+</span>&nbsp;搜索</a>
+...
+$(document).ready(function(){
+	...
+	$('#do_search').click(function(){
+		var key = $('#key_movie').val()
+		location.href = "{{ url_for('home.search', page=1) }}?key=" + key
+	});
+});
+2）在views.py中。
+@home.route('/search/<int:page>/')
+def search(page=None):
+	if page is None:
+		page = 1
+	return render_template('home/search.html')
+3）运行测试。点击【搜索】按钮。并添加搜索字段，会发现url会加上key=值。
+4）在views.py中。
+@home.route('/search/<int:page>/')
+def search(page=None):
+	if page is None:
+		page = 1
+	key = request.args.get('key', '')
+	movie_count = Movie.query.filter(
+		Movie.title.ilike('%' + key + '%')
+	).count()
+	page_data = Movie.query.filter(
+		Movie.title.ilike('%' + key + '%') 	# 模糊匹配
+	).order_by(
+		Movie.addtime.desc()
+	).paginate(page=page, per_page=10)
+	return render_template('home/search.html', key=key, page_data=page_data, movie_count=movie_count)
+5）在search.html中。
+{% import "ui/home_page.html" as pg %}
+....
+	与"{{ key }}"有关的电影，共{{ movie_count }}部。
+	...
+	{% for v in page_data.items %}
+		..<img ... style="width:131px;height:83px;"  src="{{ url_for('static', filename='uploads/'+v.logo) }}" alt="{{ v.title }}" />
+		{{ v.title }}
+		{{ v.info }}
+	{% endfor %}
+	...
+	{{ pg.page(page_data, 'home.search') }}
+6）运行测试。
+
+
+
+	【电影详情】
+1）在views.py中。
+@home.route('/play/<int:id>/')
+def play(id=None):
+	# 关联查询，因为电影是有一个标签的
+	movie = Movie.query.join(Tag).filter(
+		Tag.id == Movie.tag_id,
+		Movie.id == int(id),
+	).first_or_404()
+	return render_template('home/play.html', movie=movie)
+2）在index.html、search.html中。
+给播放按钮添加：href="{{ url_for('home.play', id=v.id) }}"
+3）在play.html中。
+	{{ movie.title }}
+	{{ movie.tag.name }}
+	{{ movie.length }}
+	{{ movie.area }}
+	# 将index.html里面的星级呈现代码拷贝过来
+	{{ movie.release_time }}
+	{{ movie.playnum }}
+	{{ movie.commentnum }}
+	{{ movie.info }}
+...
+	file: "{{ url_for('static', filename='uploads/'+movie.url) }}"
+	title: '{{ v.title }}'
+4）运行测试。
+
+
+
+10-1 	电影评论-统计
+1）在play.html中。判断登录提示、评论框是否应该出现。
+...
+{% if "user" not in session %}
+<div class="alert alert-danger alert-dismissible" role="alert">
+                    <button type="button" class="close" data-dismiss="alert">
+                        <span aria-hidden="true">×</span>
+                        <span class="sr-only">Close</span>
+                    </button>
+                    <strong>请先<a href="{{ url_for('home.login') }}" target="_blank" class="text-info">登录</a>，才可参与评论！</strong>
+                </div>
+{% endif %}
+...
+{% if "user" in session %}
+<form role="form" style="margin-bottom:6px;">
+                    <div class="form-group">
+                        <div>
+                            <label for="input_content">内容</label>
+                            <textarea id="input_content"></textarea>
+                        </div>
+                        <div class="col-xs-12" id="error_content"></div>
+                    </div>
+                    <a class="btn btn-success" id="btn-sub"><span class="glyphicon glyphicon-edit"></span>&nbsp;提交评论</a>
+                    &nbsp;
+                    <a class="btn btn-danger" id="btn-col"><span class="glyphicon glyphicon-heart"></span>&nbsp;收藏电影</a>
+                </form>
+{% endif %}
+2）运行测试。
+3）在forms.py中定义表单。
+class CommentForm(FlaskForm):
+	content = TextAreaField(
+		label='内容',
+		validators=[
+			DataRequired('请输入内容！'),
+		],
+		description='内容',
+		render_kw={
+			'id': 'input_content',
+		}
+	)
+	submit = SubmitField(
+		'提交评论',
+		render_kw={
+			'class': 'btn btn-success',
+			'id': 'btn-sub',
+		}
+	)
+4）在views.py中。
+@home.route('/play/<int:id>/', methods=['GET', 'POST'])
+def play(id=None):
+	# 关联查询，因为电影是有一个标签的
+	movie = Movie.query.join(Tag).filter(
+		Tag.id == Movie.tag_id,
+		Movie.id == int(id),
+	).first_or_404()
+
+	form = CommentForm()
+	if 'user'in session and from.validate_on_submit():
+		data = form.data
+
+	return render_template('home/play.html', movie=movie, form=form)
+5）在play.html中。
+	# 将消息闪现的代码拷贝进来
+
+	{{ form.content.label }}
+	{{ form.content }}
+	# 将错误提示代码拷贝进来
+
+	{{ form.csrf_token }}
+	{{ form.submit }}
+6）运行测试。
+7）保存内容。
+@home.route('/play/<int:id>/', methods=['GET', 'POST'])
+def play(id=None):
+	# 关联查询，因为电影是有一个标签的
+	movie = Movie.query.join(Tag).filter(
+		Tag.id == Movie.tag_id,
+		Movie.id == int(id),
+	).first_or_404()
+
+	# 页面打开一次，就算播放一次
+	movie.playnum = movie.playnum + 1
+
+	form = CommentForm()
+	if 'user'in session and from.validate_on_submit():
+		data = form.data
+
+		comment = Comment(
+			content=data['content'],
+			movie_id=movie.id,
+			user_id=session['user_id'],
+		)
+		db.session.add(comment)
+		db.session.commit()
+
+		# 注意电影的播放次数和评论数也要相应的改变
+		movie.commentnum = movie.commentnum + 1
+		flash('添加评论成功！', 'ok')
+		return redirect(url_for('home.play', id=movie.id))
+	db.session.add(movie)
+	db.session.commit()
+
+	return render_template('home/play.html', movie=movie, form=form)
+8）运行测试。
+	刷新几次网页，看播放数量是否有改变。
+9）将评论记录显示出来。
+@home.route('/play/<int:id>/<int:page>/', methods=['GET', 'POST'])
+def play(id=None, page=None):
+	movie = Movie.query.join(Tag).filter(
+		Tag.id == Movie.tag_id,
+		Movie.id == int(id),
+	).first_or_404()
+
+	if page is None:
+		page = 1
+	page_data = Comment.query.join(
+		Movie
+	).join(
+		User
+	).filter(
+		Movie.id == movie.id,
+		User.id == Comment.user_id,
+	).order_by(
+		Comment.addtime.desc()
+	).paginate(page=page, per_page=10)
+
+
+
+	movie.playnum = movie.playnum + 1
+	form = CommentForm()
+	if 'user'in session and from.validate_on_submit():
+		data = form.data
+		comment = Comment(
+			content=data['content'],
+			movie_id=movie.id,
+			user_id=session['user_id'],
+		)
+		db.session.add(comment)
+		db.session.commit()
+		movie.commentnum = movie.commentnum + 1
+		flash('添加评论成功！', 'ok')
+		return redirect(url_for('home.play', id=movie.id, page=1))
+	db.session.add(movie)
+	db.session.commit()
+	return render_template('home/play.html', movie=movie, form=form, page_data=page_data)
+10）在index.html、search.html中。加上page=1。
+	{{ url_for('home.play', id=v.id, page=1) }}
+11）在play.html中。
+...
+{% for v in page_data.items %}
+<li class="item cl">
+                        <a>
+                            <i class="avatar size-L radius">
+                                <img alt="50x50" src="{{ url_for('static', filename='uploads/users'+v.user.face) }}" class="img-circle"
+                                     style="border:1px solid #abcdef;width: 50px;">
+                            </i>
+                        </a>
+
+                        <div class="comment-main">
+                            <header class="comment-header">
+                                <div class="comment-meta">
+                                    <a class="comment-author" href="user.html">{{ v.user.name }}</a>
+                                    评论于
+                                    <time title="{{ v.addtime }}" datetime="{{ v.addtime }}">{{ v.addtime }}
+                                    </time>
+                                </div>
+                            </header>
+                            <div class="comment-body">
+                                <p>{{ v.content | safe }}</p>  # 让html内容显示出来
+                            </div>
+                        </div>
+                    </li>
+{% endfor %}
+12）运行测试。
+13）实现分页。创建ui/comment_page.html。
+将home_page.html的代码拷贝进来。
+	{% macro page(data, url, id) -%}
+	...
+	{{ url_for(url, page=1, id=id) }}首页
+	...下面也是一样加上id=id
+14）
+在play.html中。
+{% import "ui/comment_page.html" as pg %}
+...
+{{ pg.page(page_data, 'home.play', movid.id) }}
+
+
+	【会员中心的评论记录：查看自己的评论记录】
+1）在views.py中。
+@home.route('/comments/<int:page>/')
+@user_login_req
+def comments(page=None):
+	if page is None:
+		page = 1
+	page_data = Comment.query.join(
+		Movie
+	).join(
+		User
+	).filter(
+		Movie.id == Comment.movie_id,
+		User.id == session['user_id'],
+	).order_by(
+		Comment.addtime.desc()
+	).paginate(page=page, per_page=10)
+	return render_template('home/comments.html', page_data=page_data)
+2）在comments.html中。
+{% import "ui/home_page.html" as pg %}
+...
+{% for v in page_data.items %}
+<li class="item cl">
+                        <a>
+                            <i class="avatar size-L radius">
+                                <img alt="50x50" src="{{ url_for('static', filename='uploads/users'+v.user.face) }}" class="img-circle"
+                                     style="border:1px solid #abcdef;width: 50px;">
+                            </i>
+                        </a>
+
+                        <div class="comment-main">
+                            <header class="comment-header">
+                                <div class="comment-meta">
+                                    <a class="comment-author" href="user.html">{{ v.user.name }}</a>
+                                    评论于
+                                    <time title="{{ v.addtime }}" datetime="{{ v.addtime }}">{{ v.addtime }}
+                                    </time>
+                                </div>
+                            </header>
+                            <div class="comment-body">
+                                <p>{{ v.content | safe }}</p>  # 让html内容显示出来
+                            </div>
+                        </div>
+                    </li>
+{% endfor %}
+...
+{{ pg.page(page_data, 'home.comments') }}
+3）在menu.html中。
+page=1  →  评论日志
+4）运行测试。
