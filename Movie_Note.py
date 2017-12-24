@@ -2485,6 +2485,8 @@ def play(id=None):
 5）在play.html中。
 	# 将消息闪现的代码拷贝进来
 
+	全部评论{{ movie.commentnum }}
+
 	{{ form.content.label }}
 	{{ form.content }}
 	# 将错误提示代码拷贝进来
@@ -2561,6 +2563,8 @@ def play(id=None, page=None):
 		db.session.add(comment)
 		db.session.commit()
 		movie.commentnum = movie.commentnum + 1
+		db.session.add(movie)
+		db.session.commit()
 		flash('添加评论成功！', 'ok')
 		return redirect(url_for('home.play', id=movie.id, page=1))
 	db.session.add(movie)
