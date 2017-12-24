@@ -1,3 +1,4 @@
+	【图文教程】
 Flask大型教程项目：
 http://www.pythondoc.com/flask-mega-tutorial/
 
@@ -28,3 +29,19 @@ https://www.shiyanlou.com/courses/552/labs/1867/document
 
 基于Flask/RethinkDB实现TODO List：
 https://www.shiyanlou.com/courses/359
+
+
+	【视频教程】
+强力django+杀手级xadmin：
+https://coding.imooc.com/class/78.html#Prchor
+
+
+网易云课堂Flask教程：
+http://study.163.com/course/courseMain.htm?courseId=1004091002
+
+
+Flask构建微电影视频网站：
+https://coding.imooc.com/class/124.html
+
+
+
