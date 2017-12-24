@@ -2662,3 +2662,277 @@ def comments(page=None):
 3）在menu.html中。
 page=1  →  评论日志
 4）运行测试。
+
+
+10-2 	收藏电影
+1）在views.py中。
+# 通过异步Ajax的方法来添加电影收藏，return的是json信息
+# 添加电影收藏
+@home.route('moviecol/add/', methods=['GET'])
+@user_login_req
+def moviecol_add():
+	# import json
+	# return json.dumps(dict(ok=1))
+2）在play.html中。
+<script>
+	$(document).ready(function(){
+		$('#btn-col').click(function(){
+			var mid = {{ movie.id }};
+			var uid = {{ session['user_id'] }};
+			$.ajax({
+				url: "{{ url_for('home.moviecol_add') }}",
+				type: "GET",
+				data: "mid=" + mid + "&uid=" + uid,
+				dataType: "json",
+				success: function(res){
+
+				} 
+			});
+		});
+	});
+</script>
+3）运行测试。刷新play.html，点击【收藏电影】按钮，看有没有返回ok=1。
+4）在views.py中。
+@home.route('moviecol/add/', methods=['GET'])
+@user_login_req
+def moviecol_add():
+	uid = request.args.get('uid', '')
+	mid = request.args.get('mid', '')
+	moviecol = Moviecol.query.filter_by(
+		user_id=int(uid),
+		movie_id=int(mid),
+	).count()
+	if moviecol == 1: 	# 说明已经收藏
+		data = dict(ok=0)
+	if moviecol == 0:
+		moviecol = Moviecol(
+			user_id=int(uid),
+			movie_id=int(mid),
+		)
+		db.session.add(moviecol)
+		db.session.commit()
+		data = dict(ok=1)
+	import json
+	return json.dumps(data)
+5）运行测试。
+6）在play.html中。
+在form标签结束之后，添加代码：
+	<div class="col-md-12">
+		<font style="color:green" id="show_col_msg"></font>
+	</div>
+	<div class="clearfix"></div>
+....
+success:function(res){
+	if(res.ok == 1){
+		$("#show_col_msg").empty();
+		$("#show_col_msg").append("收藏成功！");
+	}else{
+		$("#show_col_msg").empty();
+		$("#show_col_msg").append("已经收藏！");
+	}
+}
+7）运行测试。点击【收藏电影】按钮。
+
+
+	【会员页面里面的收藏结果】
+1）在views.py中。
+@home.route('/moviecol/<int:page>/')
+@user_login_req
+def moviecol(page=None):
+	if page is None:
+		page = 1
+	page_dat = Moviecol.query.join(
+		Movie
+	).join(
+		User
+	).filter(
+		Movie.id == Moviecol.movie_id,
+		User.id == session['user_id'],
+	).order_by(
+		Moviecol.addtime.desc()
+	).paginate(page=page, per_page=10)
+	return render_template('home/moviecol.html', page_data=page_data)
+2）在moviecol.html中。
+{% import "ui/home_page.html" as pg %}
+...
+{% for v in page_data.items %}
+<div class="media">
+                    <div class="media-left">
+                        <a href="{{ url_for('home.play', id=v.movie_id, page=1) }}">
+                            <img class="media-object" style="width:131px;height:83px;" src="{{ url_for('static', filename='uploads/'+v.movie.logo) }}" alt="{{ v.movie.title }}">
+                        </a>
+                    </div>
+                    <div class="media-body">
+                        <h4 class="media-heading">{{ v.movie.title }}<a href="{{ url_for('home.play', id=v.movie_id, page=1) }}" class="label label-primary pull-right"><span
+                                class="glyphicon glyphicon-play"></span>播放影片</a></h4>
+                        {{ v.movie.info }}
+                    </div>
+                </div>
+{% endfor %}
+...
+{{ pg.page(page_data, 'home.moviecol') }}
+3）在menu.html中。
+page=1  →  收藏电影
+4）运行测试。
+
+
+
+10-3 	Flask结合Redis消息队列实现电影弹幕
+			【没做完笔记】
+1、模型：Movie
+2、表单：无
+3、请求方法：GET、POST
+4、访问控制：无
+5、消息队列：Redis
+6、Flask第三方扩展：Flask-Redis
+7、弹幕播放器插件：dplayer.js（开源）
+
+1）pip install flask-redis
+	教程：www.imooc.com/article/19536
+2）在Linux机器下下载。
+	下载redis-4.0.1.tar.gz
+	yum -y install gcc gcc-c++
+	tar zxf redis-4.0.1.tar.gz
+	cd redis-4.0.1/
+	make && make install
+	./utils/install_server.sh
+		↓
+	vim /etc/redis/6379.conf
+		bind 192.168.4.1（为当前服务器的地址）
+		↓
+	redis-cli -h 192.168.4.1
+	> ping（看是否正常连接）
+3）在views.py中。
+将play路由函数的代码复制一遍。进行修改。
+@home.route('/video/<int:id>/<int:page>/', methods=['GET', 'POST'])
+def video(id=None, page=None):
+	movie = Movie.query.join(Tag).filter(
+		Tag.id == Movie.tag_id,
+		Movie.id == int(id),
+	).first_or_404()
+
+	if page is None:
+		page = 1
+	page_data = Comment.query.join(
+		Movie
+	).join(
+		User
+	).filter(
+		Movie.id == movie.id,
+		User.id == Comment.user_id,
+	).order_by(
+		Comment.addtime.desc()
+	).paginate(page=page, per_page=10)
+	movie.playnum = movie.playnum + 1
+	form = CommentForm()
+	if 'user'in session and from.validate_on_submit():
+		data = form.data
+		comment = Comment(
+			content=data['content'],
+			movie_id=movie.id,
+			user_id=session['user_id'],
+		)
+		db.session.add(comment)
+		db.session.commit()
+		movie.commentnum = movie.commentnum + 1
+		flash('添加评论成功！', 'ok')
+		return redirect(url_for('home.video', id=movie.id, page=1))
+	db.session.add(movie)
+	db.session.commit()
+	return render_template('home/video.html', movie=movie, form=form, page_data=page_data)
+4）将play.html的代码复制一份，为video.html。再进行修改。
+	将jwplayer插件对应的js代码去掉。即下面的代码：
+<script src="{{ url_for('static', filename='jwplayer/jwplayer.js') }}"></script>
+<script type="text/javascript">
+	jwplayer.key = "P9VTqT/X6TSP4gi/hy1wy23BivBhjdzVjMeOaQ==";
+
+</script>
+<script type="text/javascript">
+	jwplayer("moviecontainer").setup({
+		flashplayer: "{{ url_for('static', filename='jwplayer/jwplayer.flash.swf') }}",
+		playlist: [{
+			file: "{{ url_for('static', filename='video/htpy.mp4') }}",
+			title: "环太平洋"
+		}],
+		modes: [{
+			type: "html5"
+		}, {
+			type: "flash",
+			src: "{{ url_for('static', filename='jwplayer/jwplayer.flash.swf') }}"
+		}, {
+			type: "download"
+		}],
+		skin: {
+			name: "vapor"
+		},
+		"playlist.position": "left",
+		"playlist.size": 400,
+		height: 500,
+		width: 774,
+	});
+
+</script>
+
+		home.play  →  home.video
+		将jwplayer对应的css引入也删除。
+
+没写完.......................
+
+
+
+	【代码优化及Bug处理】
+1、头像判断
+1）在play.html中，判断用户是否有头像。
+{% if v.user.face %}
+	<img ...  />
+{% else %}
+	<img ... data-src="holder.js/50x50" />
+{% endif %}
+2）在comments.html，也是跟上面一样。
+{% if v.user.face %}
+...
+{% else %}
+...
+{% endif %}
+3）在admin/user_list.html中。也是一样。
+{% if v.user.face %}
+...
+{% else %}
+...
+{% endif %}
+4）user_view.html中。也是一样。
+{% if v.user.face %}
+...
+{% else %}
+...这里是holder.js/100x100
+{% endif %}
+
+
+2、关键字搜索分页
+当你输入关键字，如“空”跳到搜索页，但如果你点击了【首页】按钮，url上的key信息就不见了，这是不被允许的。
+1）创建ui/s_page.html。
+	将home_page.html的代码复制过来。
+所有需要跳转的地方都加上?key={{ data.key }}，如：
+"{{ url_for(url, page=1) }}?key={{ data.key }}">首页
+2）在search.html中。
+将{% import "ui/home_page.html" as pg %}
+	改为
+{% import "ui/s_page.html" as pg %}
+3）在views.py中。将key传递给页面。
+...
+def search(page=None):
+	...
+	page_data.key = key
+	return render_template...
+
+
+3、电影右侧播放页面滚动条
+添加滚动条：
+<div class="panel-body" style="height:459px;overflow:scroll;">
+
+1）在play.html中。
+将
+	<div class="panel-body" style...>
+改为
+<div class="panel-body" style="height:459px;overflow:scroll;">
+2）在video.html中。也是跟上面一样的操作。
