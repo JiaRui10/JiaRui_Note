@@ -1,3 +1,5 @@
+【Done】
+
 virtualenv的使用：
 1）创建虚拟环境：virtualenv venv
 2）激活虚拟环境：source venv/bin/activate
@@ -121,18 +123,369 @@ if __name__ == '__main__':
 
 
 
+20171211-前台布局搭建
+1、静态文件引入：
+{{ url_for('static', filename='文件路径') }}
+2、定义路由：
+{{ url_for('模块名.视图名', 变量=参数) }}
+3、定义数据库：
+{% block 数据块 %}...{% endblock %}
+{% block content %}{% endblock %}
+{% block css %}{% endblock %}
+{% block js %}{% endblock %}
 
 
-【中间还有待补充的东西】
+1、添加路由
+2、编写html代码
+
+
+导入代码，如左边的导航栏：{% include "home/menu.html" %}
+
+让被选中的项目高亮：
+1、将html中active的class删除
+2、给每个项目添加id：m-1、m-2、m-3
+3、在每个项目对应的html文件中，添加下面的js代码：
+{% block js %}
+<script>
+$(document).ready(function(){
+    $('#m-1').addClass('active');
+});
+</script>
+{% endblock %}
 
 
 
+6-1     管理员登录
+1、app/__init__.py中创建db对象
+2、app/models.py中导入db对象
+3、app/admin/forms.py中定义表单验证
+4、app/templates/admin/login.html中使用表单字段、信息验证、消息闪现
+5、app/admin/views.py中处理登录请求、保存会话
+6、app/admin/views.py中定义登录装饰器、访问控制
+
+模型：Admin
+表单：LoginForm
+请求方法：GET、POST
+访问控制：无
+
+具体步骤：
+1）将models.py中关于db对象创建的代码，挪到app的初始化文件__init__.py中。
+2）在models.py中导入db对象。
+3）在forms.py中定义表单类
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, SubmitField
+from wtforms.validators import DataRequired
+
+class LoginForm(FlaskForm):
+    '''管理员登录表单'''
+    account = StringField(
+        label='账号',
+        validators=[
+            DataRequired('请输入账号！'),
+        ],
+        description='账号',
+        render_kw={
+            'class': 'form-control',
+            'placeholder': '请输入账号',
+            'required': 'required',
+        }
+    )
+    pwd = PasswordField(
+        label='密码',
+        validators=[
+            DataRequired('请输入密码！'),
+        ],
+        description='密码',
+        render_kw={
+            'class': 'form-control',
+            'placeholder': '请输入密码',
+            'required': 'required',
+        }
+    )
+    submit = SubmitField(
+        '登录',
+        render_kw={
+            'class': 'btn btn-primary btn-block btn-flat',
+        }
+    )
+4）将上面定义好的表单类，运用到html模板中。
+a、找到views.py中的login()路由函数：
+    form = LoginForm()
+    return render_template('admin/login.html', form=form)
+b、在login.html中，先将表单对应的html代码删除，如input标签代码。然后用下面的代码替换：
+    {{ form.account }}
+    {{ form.pwd }}
+    {{ form.submit }}
+5）直接运行。会报错：KeyError: 'A secret key is required to use CSRF.'
+6）在app的初始化文件__init__.py中。
+app.config['SECRET_KEY'] = 'suijizifuchuan'
+
+在login.html中，在{{ form.submit }}前面添加：{{ form.csrf_token }}
+7）视图处理。在views.py中的login()视图函数中。
+if form.validate_on_submit():   # 是否验证成功
+    data = form.data
+8）如何在模板中显示错误信息？
+{% for err form.account.errors %}
+    <div class="col-md-12" id="input_user">
+        <font style="color: red;">{{ err }}</font>
+    </div>
+{% endfor %}
+注意：form元素的action属性要去掉。
+9）
+@admin.route('/login/', methods=['GET', 'POST'])
+10）运行测试。
+11）如何验证账号和密码？
+（在表单里面自定义一个账号验证器）
+from wtforms.validators import ValidationError
+class LoginForm(FlaskForm):
+    ...
+    def validate_account(self, field):
+        account = field.data
+        admin = Admin.query.filter_by(name=account).count()
+        if admin == 0:
+            raise ValidationError('账号不存在')
+
+a、验证哈希密码
+在Admin模型下面定义方法：
+def check_pwd(self, pwd):
+    from werkzeug.security import check_password_hash
+    return check_password_hash(self.pwd, pwd)
+b、打开views.py中的login()视图函数，进行密码验证的处理。
+data = form.data
+admin = Admin.query.filter_by(name=data['account']).first()
+if not admin.check_pwd(data['pwd']):
+    flash('密码错误')
+    return redirect(url_for('admin.login'))    
+# 如果密码是正确的，那就要对账号进行保存
+session['admin'] = data['account']
+return redirect(request.args.get('next') or url_for('admin.index'))
+c、用flash消息闪现显示密码错误信息
+{% for msg in get_flashed_messages() %}
+    <p class="login-box-msg" style="color: red;">msg</p>
+{% endfor %}
+12）运行测试。
+13）退出系统。
+@admin.route('/logout/')
+def logout():
+    session.pop('admin', None)
+    return redirect(url_for('admin.login'))
+14）访问控制：即用户未登录的情况下，不能让用户访问后台页面。
+a、
+（使用装饰器）
+from functools import wraps
+
+def admin_login_req(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'admin' not in session:
+            return redirect(url_for('admin.login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+b、对后台页面对应的视图函数，加上该装饰器
+@admin.route('/')
+@admin_login_req
+15）运行测试。这时不登录就没办法访问，但如果登录了再推出，还是可以访问后台，这是因为浏览器有缓存。
 
 
 
+6-2     标签管理
+1、模型：Tag
+2、表单：TagForm
+3、请求方法：GET、POST
+4、访问控制
+@admin_login_req
 
 
+1）在forms.py中定义标签表单类
+class TagForm(FlaskForm):
+    name = StringField(
+        label='名称',
+        validators=[
+            DataRequired('请输入标签！'),
+        ],
+        description='标签',
+        render_kw={
+            'class': 'form-control',
+            'id': 'input_name',
+            'placeholder': '请输入标签名称！'
+        }
+    )
+    submit = SubmitField(
+        '添加',
+        render_kw={
+            'class': 'btn btn-primary'
+        }
+    )
+2）在views.py中。
+# 添加标签
+@admin.route('/tag/add/')
+@admin_login_req
+def tag_add():
+    form = TagForm()
+    return render_template('admin/tag_add.html', form=form)
+3）在tag_add.html中。
+    {{ form.name.label }}
+    {{ form.name }}
 
+    {{ form.csrf_token }}
+    {{ form.submit }}
+4）运行测试。
+5）如何在点击“添加”之后，让数据入库呢？
+form = TagForm()
+if form.validate_on_submit():
+    data = form.data
+    # 标签要是唯一性
+    tag = Tag.query.filter_by(name=data['name']).count()
+    if tag == 1:
+        flash('标签已经存在！', 'err')
+        return redirect(url_for('admin.tag_add'))
+    # 入库
+    tag = Tag(
+        name=data['name'],
+    )
+    db.session.add(tag)
+    db.session.commit()
+    flash('添加标签成功', 'ok')
+    return redirect(url_for('admin.tag_add'))
+
+判断：在tag_add.html中，注意form要添加属性：method='POST'，路由也要同时允许get和post。
+# 下面代码的作用：当输入为空的时候报错
+{% for err in form.name.errors %}
+    <div class="col-md-12" id="input_user">
+        <font style="color: red;">{{ err }}</font>
+    </div>
+{% endfor %}
+
+# 弹出flash
+{% for msg in get_flashed_messages(category_filter=['ok']) %}
+<div class="alert alert-success alert-dismissible">
+    <button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button>
+    <h4><i class="icon fa fa-check"></i>操作成功</h4>
+    {{ msg }}
+</div>
+{% endfor %}
+
+{% for msg in get_flashed_messages(category_filter=['err']) %}
+<div class="alert alert-danger alert-dismissible">
+    <button type="button" class="close" data-dismiss="alert" aria-hidden="true">x</button>
+    <h4><i class="icon fa fa-ban"></i>操作失败</h4>
+    {{ msg }}
+</div>
+{% endfor %}
+
+
+【标签列表】
+功能：将标签分页展示出来。
+1）要给路由函数传入一个page
+# 标签列表
+@admin.route('/tag/list/<int:page>/', methods=['GET'])
+@admin_login_req
+def tag_list(page):
+    if page is None:
+        page = 1
+    # 查询并分页显示
+    # 不需要过滤条件，结果按时间排序
+    # paginate：进行分页
+    # per_page：每一页显示的页数，这里先用1测试
+    page_data = Tag.query.order_by(
+        Tag.addtime.desc()
+    ).paginate(page=page, per_page=1)
+    return render_template('admin/tag_list.html', page_data=page_data)
+2）在tag_list.html中分页显示。
+{% for v in page_data.items %}
+<tr>
+    <td>{{ v.id }}</td>
+    <td>{{ v.name }}</td>
+    <td>{{ v.addtime }}</td>
+    <td>
+        <a class="label label-success">编辑</a>
+        &nbsp;
+        <a class="label label-danger">删除</a>
+    </td>
+</tr>
+{% endfor %}
+3）打开grid.html，修改【标签列表】对应的a标签的href属性：
+{{ url_for('admin.tag_list', page=1) }}
+4）运行测试。此时一页就显示了一条数据。
+5）创建文件：templates/ui/admin_page.html。用于保存页码。
+将tag_list.html文件的下面关于页码的代码，剪切到admin_page.html中。
+{% macro page(data, url) -%}
+{% if data %}
+<ul class="pagination pagination-sm no-margin pull-right">
+    <li><a href="{{ url_for(url, page=1) }}">首页</a></li>
+    {% if data.has_prev %}
+        <li><a href="{{ url_for(url, page=data.prev_num) }}">上一页</a></li>
+    {% else %}
+        <li class="disabled"><a href="#">上一页</a></li>
+    {% endif %}
+
+    {% for v in data.iter_pages() %}
+        {% if v == data.page %}
+            <li class="active"><a href="#">{{ v }}</a></li>
+        {% else %}
+            <li><a href="{{ url_for(url, page=v) }}">{{ v }}</a></li>
+        {% enif %}
+    {% enfor %}
+
+    {% if data.has_next %}
+        <li><a href="{{ url_for(url, page=data.next_num) }}">下一页</a></li>
+    {% else %}
+        <li class="disabled"><a href="#">下一页</a></li>
+    {% endif %}
+
+    <li><a href="{{ url_for(url, page=data.pages) }}">尾页</a></li>
+</ul>
+{% endif %}
+{%- endmacro %}
+6）tag_list.html中。
+{% import "ui/admin_page.html" as pg %}
+<div class="box-footer clearfix">
+    {{ pg.page(page_data, 'admin.tag_list') }}
+</div>
+7）运行测试。
+8）【编辑】、【删除】按钮的逻辑
+    【删除】按钮
+a、
+# 标签删除
+@admin.route('/tag/del/<int:id>/', methods=['GET'])
+@admin_login_req
+def tag_del(id=None):
+    # 通过主键查询
+    tag = Tag.query.filter_by(id=id).first_or_404()
+    db.session.delete(tag)
+    db.session.commit()
+    flash('删除标签成功', 'ok')
+    return redirect(url_for('admin.tag_list', page=1))
+b、
+在tag_list.html中。添加flash消息闪现。
+<a ... href="{{ url_for('admin.tag_del', id=v.id) }}">删除</a>
+c、运行测试。
+
+    【编辑】按钮
+1）
+# 标签编辑
+@admin.route('/tag/edit/<int:id>/', methods=['GET', 'POST'])
+@admin_login_req
+def tag_edit(id=None):
+    form = TagForm()
+    tag = Tag.query.get_or_404(id)
+    if form.validate_on_submit():
+        data = form.data
+        # 标签要是唯一性
+        tag_count = Tag.query.filter_by(name=data['name']).count()
+        if tag.name == data['name'] and tag_count == 1:
+            flash('标签已经存在！', 'err')
+            return redirect(url_for('admin.tag_edit', id=id))
+        tag.name = data['name']
+        db.session.add(tag)
+        db.session.commit()
+        flash('修改标签成功', 'ok')
+        return redirect(url_for('admin.tag_edit', id=id))
+    return render_template('admin/tag_edit.html', form=form, tag=tag)
+2）创建tag_edit.html。
+3）在tag_list.html中。
+<a ... href="{{ url_for('admin.tag_edit', id=v.id) }}">编辑</a>
+4）运行测试。成功。
 
 
 
