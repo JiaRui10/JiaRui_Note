@@ -794,7 +794,7 @@ def movie_edit(id=None):
 {{ form.title(value=movie.title) }}
 {{ form.url }}
 {{ form.info }}     # 注意这个不一样
-<img src="{{ url_for('static', filename='uploads/{}'+movie.logo) }}">
+<img src="{{ url_for('static', filename='uploads/'+movie.logo) }}">
 {{ form.star(value=movie.star) }}
 {{ form.tag_id(value=movie.tag_id) }}
 {{ form.area(value=movie.area) }}
@@ -802,7 +802,7 @@ def movie_edit(id=None):
 {{ form.release_time(value=movie.release_time) }}
 
 js代码也要替换：
-file: "{{ url_for('static', filename='uploads/{}'+movie.url) }}"
+file: "{{ url_for('static', filename='uploads/'+movie.url) }}"
 title: "{{ movie.title }}"
 3）设置movie_list.html中的按钮。
 <a href="{{ url_for('admin.movie_edit', id=v.id) }}"  class="label label-danger">编辑</a>
@@ -823,7 +823,7 @@ title: "{{ movie.title }}"
 		data = form.data
 		# 注意片名是唯一的
 		movie_count = Movie.query.filter_by(title=data['title']).count()
-		if movie_count == 1 and movie.title != data['title']:   # 这里是!=?????
+		if movie_count == 1 and movie.title == data['title']:   # 这里是!=?????
 			flash('片名已经存在！', 'err')
 			return redirect(url_for('admin.movie_edit', id=id))
 
