@@ -1,0 +1,459 @@
+网易云课堂——Flask系列教程
+### Python虚拟环境介绍与安装：
+1. 因为python的框架更新迭代太快了，有时候需要在电脑上存在一个框架的多个版本，这时候虚拟环境就可以解决这个问题。
+2. 通过以下命令安装虚拟环境：pip install virtualenv
+3. 开辟新的虚拟环境：virtualenv [virtualenv-name]
+4. 激活虚拟环境：
+    * [类linux]：source [虚拟环境的目录]/bin/activate
+    * [windows]：直接进入到虚拟环境的目录，然后执行activate
+    * 退出虚拟环境：deactivate
+
+### 第一个flask程序讲解：
+1. 第一次创建项目的时候，要添加flask的虚拟环境。添加虚拟环境的时候，一定要选择到python这个执行文件。
+比如你的flask的虚拟环境的目录在/User/Virtualenv/flask-env/bin/python。
+2. flask程序代码的详细解释：
+    ```
+    # 从flask这个框架中导入Flask这个类
+    from flask import Flask
+ 
+    # 初始化一个Flask对象
+    # Flaks()
+    # 需要传递一个参数__name__
+    # 1. 方便flask框架去寻找资源
+    # 2. 方便flask插件比如Flask-Sqlalchemy出现错误的时候，好去寻找问题所在的位置
+    app = Flask(__name__)
+ 
+ 
+    # @app.route是一个装饰器
+    # @开头，并且在函数的上面，说明是装饰器
+    # 这个装饰器的作用，是做一个url与视图函数的映射
+    # 127.0.0.1:5000/   ->  去请求hello_world这个函数，然后将结果返回给浏览器
+    @app.route('/')
+    def hello_world():
+        return '我是第一个flask程序'
+ 
+ 
+    # 如果当前这个文件是作为入口程序运行，那么就执行app.run()
+    if __name__ == '__main__':
+        # app.run()
+        # 启动一个应用服务器，来接受用户的请求
+        # while True:
+        #   listen()
+        app.run()
+    ```
+
+### 设置debug模式：
+1. 在app.run()中传入一个关键字参数debug,app.run(debug=True)，就设置当前项目为debug模式。
+2. debug模式的两大功能：
+    * 当程序出现问题的时候，可以在页面中看到错误信息和出错的位置。
+    * 只要修改了项目中的`python`文件，程序会自动加载，不需要手动重新启动服务器。
+
+
+
+### 使用配置文件：
+1. 新建一个`config.py`文件。 
+	写入代码： DEBUG = True
+2. 在主app文件中导入这个文件，并且配置到`app`中，示例代码如下：
+    ```
+    import config
+    app.config.from_object(config)
+    ```
+3. 还有许多的其他参数，都是放在这个配置文件中，比如`SECRET_KEY`和`SQLALCHEMY`这些配置，都是在这个文件中。
+
+
+### url传参数：
+1. 参数的作用：可以在相同的URL，但是指定不同的参数，来加载不同的数据。
+2. 在flask中如何使用参数：
+    ```
+    @app.route('/article/<id>')
+    def article(id):
+        return u'您请求的参数是：%s' % id
+    ``` 
+    * 参数需要放在两个尖括号中。
+    * 视图函数中需要放和url中的参数同名的参数。
+
+
+### 反转URL：
+1. 什么叫做反转URL：从视图函数到url的转换叫做反转url
+2. 反转url的用处：
+    * 在页面重定向的时候，会使用url反转。
+    * 在模板中，也会使用url反转。
+    url_for()
+
+### 页面跳转和重定向：
+1. 用处：在用户访问一些需要登录的页面的时候，如果用户没有登录，那么可以让她重定向到登录页面。
+2. 代码实现：
+    ```
+    from flask import redirect,url
+    return redirect(url_for('login'))
+    ```
+
+### Flask渲染Jinja2模板和传参：
+1. 如何渲染模板：
+    * 模板放在`templates`文件夹下
+    * 从`flask`中导入`render_template`函数。
+    * 在视图函数中，使用`render_template`函数，渲染模板。注意：只需要填写模板的名字，不需要填写`templates`这个文件夹的路径。
+2. 模板传参：
+    * 如果只有一个或者少量参数，直接在`render_template`函数中添加关键字参数就可以了。
+    * 如果有多个参数的时候，那么可以先把所有的参数放在字典中，然后在`render_template`中，
+    使用两个星号，把字典转换成关键参数传递进去，这样的代码更方便管理和使用。
+@app.route('/')
+def index():
+	context = {
+		'username': '姓名',
+		'gender': '男',
+		'age': 18,
+	}
+	return render_template('index.html', **context)  	# 关键字参数传递
+3. 在模板中，如果要使用一个变量，语法是：`{{params}}`
+4. 访问模型中的属性或者是字典，可以通过`{{params.property}}`的形式，或者是使用`{{params['age']}}`.
+
+
+### if判断： 
+1. 语法：       ```     {% if xxx %}     {% else %}     {% endif %}     ``` 
+2. if的使用，可以和python中相差无几。
+
+### for循环遍历列表和字典：
+1. 字典的遍历，语法和`python`一样，可以使用`items()`、`keys()`、`values()`、`iteritems()`、`iterkeys()`、`itervalues()`
+    ```
+    {% for k,v in user.items() %}
+        <p>{{ k }}：{{ v }}</p>
+    {% endfor %}
+    ```
+2. 列表的遍历：语法和`python`一样。
+    ```
+    {% for website in websites %}
+        <p>{{ website }}</p>
+    {% endfor %}
+    ```
+
+
+### 过滤器：
+1. 介绍和语法：
+    * 介绍：过滤器可以处理变量，把原始的变量经过处理后再展示出来。作用的对象是变量。
+    * 语法：
+        ```
+        # 如果有头像，显示头像。如果没有，显示默认头像。
+        {{ avatar|default('xxx') }}
+        ```
+2. default过滤器：如果当前变量不存在，这时候可以指定默认值。
+3. length过滤器：求列表或者字符串或者字典或者元组的长度。
+4. 常用的过滤器：
+    abs(value)：返回一个数值的绝对值。示例：-1|abs
+    default(value,default_value,boolean=false)：如果当前变量没有值，则会使用参数中的值来代替。示例：name|default('xiaotuo')——如果name不存在，则会使用xiaotuo来替代。boolean=False默认是在只有这个变量为undefined的时候才会使用default中的值，如果想使用python的形式判断是否为false，则可以传递boolean=true。也可以使用or来替换。
+    escape(value)或e：转义字符，会将<、>等符号转义成HTML中的符号。示例：content|escape或content|e。
+    first(value)：返回一个序列的第一个元素。示例：names|first
+    format(value,*arags,**kwargs)：格式化字符串。比如：
+ 
+      {{ "%s" - "%s"|format('Hello?',"Foo!") }}
+      将输出：Helloo? - Foo!
+    last(value)：返回一个序列的最后一个元素。示例：names|last。
+ 
+    length(value)：返回一个序列或者字典的长度。示例：names|length。
+    join(value,d=u'')：将一个序列用d这个参数的值拼接成字符串。
+    safe(value)：如果开启了全局转义，那么safe过滤器会将变量关掉转义。示例：content_html|safe。
+    int(value)：将值转换为int类型。
+    float(value)：将值转换为float类型。
+    lower(value)：将字符串转换为小写。
+    upper(value)：将字符串转换为小写。
+    replace(value,old,new)： 替换将old替换为new的字符串。
+    truncate(value,length=255,killwords=False)：截取length长度的字符串。
+    striptags(value)：删除字符串中所有的HTML标签，如果出现多个空格，将替换成一个空格。
+    trim：截取字符串前面和后面的空白字符。
+    string(value)：将变量转换成字符串。
+    wordcount(s)：计算一个长字符串中单词的个数。
+
+
+### 继承和block：
+1. 继承作用和语法：
+    * 作用：可以把一些公共的代码放在父模板中，避免每个模板写同样的代码。
+    * 语法：
+        ```
+        {% extends 'base.html' %}
+        ```
+2. block实现：
+    * 作用：可以让子模板实现一些自己的需求。父模板需要提前定义好。
+    * 注意点：字模板中的代码，必须放在block块中。
+    {% block content %}{% endblock %}
+ 
+### url链接：使用`url_for(视图函数名称)`可以反转成url。
+ 
+### 加载静态文件：
+1. 语法：`url_for('static',filename='路径')`
+2. 静态文件，flask会从`static`文件夹中开始寻找，所以不需要再写`static`这个路径了。
+3. 可以加载`css`文件，可以加载`js`文件，还有`image`文件。
+    ```
+    第一个：加载css文件
+    <link rel="stylesheet" href="{{ url_for('static',filename='css/index.css') }}">
+    第二个：加载js文件
+    <script src="{{ url_for('static',filename='js/index.js') }}"></script>
+    第三个：加载图片文件
+    <img src="{{ url_for('static',filename='images/zhiliao.png') }}" alt="">
+    ```
+
+
+
+
+
+### 安装MySQL-python
+数据库引擎，或者叫MySQL中间件。
+
+1. 如果是在类unix系统上，直接进入虚拟环境，输入`sudo pip install mysql-python`。
+2. 如果是在windows系统上，那么在这里下载`http://www.lfd.uci.edu/~gohlke/pythonlibs/#mysql-python`下载`MySQL_python‑1.2.5‑cp27‑none‑win_amd64.whl`，然后在命令行中，进入到`MySQL_python‑1.2.5‑cp27‑none‑win_amd64.whl`所在的目录，输入以下命令进行安装：
+    ```
+pip install MySQL_python‑1.2.5‑cp27‑none‑win_amd64.whl
+	↓
+没有安装成功：https://www.cnblogs.com/chenjingyi/p/5740415.html
+
+
+### Flask-SQLAlchemy的介绍与安装：
+1. ORM：Object Relationship Mapping（模型关系映射）。
+2. flask-sqlalchemy是一套ORM框架。
+3. ORM的好处：可以让我们操作数据库跟操作对象是一样的，非常方便。因为一个表就抽象成一个类，一条数据就抽象成该类的一个对象。
+4. 安装`flask-sqlalchemy`：`sudo pip install flask-sqlalchemy`。
+
+
+
+### Flask-SQLAlchemy的使用：
+1. 初始化和设置数据库配置信息：
+    * 使用flask_sqlalchemy中的SQLAlchemy进行初始化：
+        ```
+        from flask_sqlalchemy import SQLAlchemy
+        app = Flask(__name__)
+        db = SQLAlchemy(app)
+        ```
+2. 设置配置信息：在`config.py`文件中添加以下配置信息：
+    ```
+    # dialect+driver://username:password@host:port/database
+    DIALECT = 'mysql'
+    DRIVER = 'mysqldb'
+    USERNAME = 'root'
+    PASSWORD = 'root'
+    HOST = '127.0.0.1'
+    PORT = '3306'
+    DATABASE = 'db_demo1'
+
+    SQLALCHEMY_DATABASE_URI = "{}+{}://{}:{}@{}:{}/{}?charset=utf8".format(DIALECT,DRIVER,USERNAME,PASSWORD,HOST
+                                                 ,PORT,DATABASE)
+
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    ```
+
+3. 在主`app`文件中，添加配置文件：
+    ```
+    app = Flask(__name__)
+    app.config.from_object(config)
+    db = SQLAlchemy(app)
+    ```
+4. 做测试，看有没有问题：
+    ```
+    db.create_all()
+    ```
+    如果没有报错，说明配置没有问题，如果有错误，可以根据错误进行修改。
+
+### 使用Flask-SQLAlchemy创建模型与表的映射：
+1. 模型需要继承自`db.Model`，然后需要映射到表中的属性，必须写成`db.Column`的数据类型。
+2. 数据类型：
+    * `db.Integer`代表的是整形.
+    * `db.String`代表的是`varchar`，需要指定最长的长度。
+    * `db.Text`代表的是`text`。
+3. 其他参数：
+    * `primary_key`：代表的是将这个字段设置为主键。
+    * `autoincrement`：代表的是这个主键为自增长的。
+    * `nullable`：代表的是这个字段是否可以为空，默认可以为空，可以将这个值设置为`False`，在数据库中，这个值就不能为空了。
+4. 最后需要调用`db.create_all`来将模型真正的创建到数据库中。
+
+
+### Flask-SQLAlchemy数据的增、删、改、查：
+1. 增：
+    ```
+    # 增加：
+    article1 = Article(title='aaa',content='bbb')
+    db.session.add(article1)
+    # 事务
+    db.session.commit()
+    ```
+2. 查：
+    ```
+    # 查
+    # select * from article where article.title='aaa';
+    article1 = Article.query.filter(Article.title == 'aaa').first()
+    print 'title:%s' % article1.title
+    print 'content:%s' % article1.content
+    ```
+3. 改：
+    ```
+    # 改：
+    # 1. 先把你要更改的数据查找出来
+    article1 = Article.query.filter(Article.title == 'aaa').first()
+    # 2. 把这条数据，你需要修改的地方进行修改
+    article1.title = 'new title'
+    # 3. 做事务的提交
+    db.session.commit()
+    ```
+4. 删：
+    ```
+    # 删
+    # 1. 把需要删除的数据查找出来
+    article1 = Article.query.filter(Article.content == 'bbb').first()
+    # 2. 把这条数据删除掉
+    db.session.delete(article1)
+    # 3. 做事务提交
+    db.session.commit()
+    ```
+
+
+
+
+
+### Flask-SQLAlchemy外键及其关系：
+1. 外键：
+    ```
+    class User(db.Model):
+        __tablename__ = 'user'
+        id = db.Column(db.Integer,primary_key=True,autoincrement=True)
+        username = db.Column(db.String(100),nullable=False)
+
+    class Article(db.Model):
+        __tablename__ = 'article'
+        id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+        title = db.Column(db.String(100),nullable=False)
+        content = db.Column(db.Text,nullable=False)
+        author_id = db.Column(db.Integer,db.ForeignKey('user.id'))
+
+        author = db.relationship('User',backref=db.backref('articles')) 	
+    ```
+2. `author = db.relationship('User',backref=db.backref('articles'))`解释：
+    * 给`Article`这个模型添加一个`author`属性，可以访问这篇文章的作者的数据，像访问普通模型一样。
+    * `backref`是定义反向引用，可以通过`User.articles`访问这个模型所写的所有文章。
+
+ 查找文章对应的作者：
+ 	article = Article.query.filter(Article.title == 'aaa').first()
+ 	print('username: {}'.format(article.author.username))
+ 找出作者写过的所有文章：
+ 	user = User.query.filter(User.username == 'zhiliao').first()
+ 	result = user.articles    	# 后面的.articles为backref=db.backref('articles') 这里决定
+ 	for article in result:
+ 		print article.title
+
+3. 多对多：
+    * 多对多的关系，要通过一个中间表进行关联。
+    * 中间表，不能通过`class`的方式实现，只能通过`db.Table`的方式实现。
+    * 设置关联：`tags = db.relationship('Tag',secondary=article_tag,backref=db.backref('articles'))`需要使用一个关键字参数`secondary=中间表`来进行关联。
+    * 访问和数据添加可以通过以下方式进行操作：
+        - 添加数据：
+            ```
+            article1 = Article(title='aaa')
+            article2 = Article(title='bbb')
+
+            tag1 = Tag(name='111')
+            tag2 = Tag(name='222')
+
+            article1.tags.append(tag1)
+            article1.tags.append(tag2)
+
+            article2.tags.append(tag1)
+            article2.tags.append(tag2)
+
+            db.session.add(article1)
+            db.session.add(article2)
+
+            db.session.add(tag1)
+            db.session.add(tag2)
+
+            db.session.commit()
+            ``` 
+        - 访问数据：
+            ```
+            article1 = Article.query.filter(Article.title == 'aaa').first()
+            tags = article1.tags
+            for tag in tags:
+                print tag.name
+            ```
+
+
+### Flask-Script的介绍与安装：
+1. Flask-Script：Flask-Script的作用是可以通过命令行的形式来操作Flask。例如通过命令跑一个开发版本的服务器、设置数据库，定时任务等。
+2. 安装：首先进入到虚拟环境中，然后`pip install flask-script`来进行安装。
+3. 如果直接在主`manage.py`中写命令，那么在终端就只需要`python manage.py command_name`就可以了。
+4. 如果把一些命令集中在一个文件中，那么在终端就需要输入一个父命令，比如`python manage.py db init`。
+5. 例子：
+    manage.py
+    ```
+    from flask_script import Manager
+    from flask_script_demo import app
+    from db_scripts import DBManager
+
+    manager = Manager(app)
+
+
+    # 和数据库相关的操作，我都放在一起
+
+    @manager.command
+    def runserver():
+        print '服务器跑起来了!!!!!'
+    manager.add_command('db',DBManager)
+
+    if __name__ == '__main__':
+        manager.run()
+    ```
+6. 有子命令的例子：
+    db_scripts.py
+    ```
+    #encoding: utf-8
+
+    from flask_script import Manager
+
+    DBManager = Manager()
+
+    @DBManager.command
+    def init():
+        print '数据库初始化完成'
+
+    @DBManager.command
+    def migrate():
+        print '数据表迁移成功'
+    ```
+
+
+
+
+### 分开`models`以及解决循环引用：
+1. 分开models的目的：为了让代码更加方便的管理。
+2. 如何解决循环引用：把`db`放在一个单独的文件中，切断循环引用的线条就可以了。
+
+
+
+### Flask-Migrate的介绍与安装：
+1. 介绍：因为采用`db.create_all`在后期修改字段的时候，不会自动的映射到数据库中，必须删除表，然后重新运行`db.craete_all`才会重新映射，这样不符合我们的需求。因此flask-migrate就是为了解决这个问题，她可以在每次修改模型后，可以将修改的东西映射到数据库中。
+2. 首先进入到你的虚拟环境中，然后使用`pip install flask-migrate`进行安装就可以了。
+3. 使用`flask_migrate`必须借助`flask_scripts`，这个包的`MigrateCommand`中包含了所有和数据库相关的命令。
+4. `flask_migrate`相关的命令：
+    * `python manage.py db init`：初始化一个迁移脚本的环境，只需要执行一次。
+    * `python manage.py db migrate`：将模型生成迁移文件，只要模型更改了，就需要执行一遍这个命令。
+    * `python manage.py db upgrade`：将迁移文件真正的映射到数据库中。每次运行了`migrate`命令后，就记得要运行这个命令。
+5. 注意点：需要将你想要映射到数据库中的模型，都要导入到`manage.py`文件中，如果没有导入进去，就不会映射到数据库中。
+6. `manage.py`的相关代码：
+    ```
+    from flask_script import Manager
+    from migrate_demo import app
+    from flask_migrate import Migrate,MigrateCommand
+    from exts import db
+    from models import Article
+
+    # init
+    # migrate
+    # upgrade
+    # 模型  ->  迁移文件  ->  表
+
+    manager = Manager(app)
+
+    # 1. 要使用flask_migrate，必须绑定app和db
+    migrate = Migrate(app,db)
+
+    # 2. 把MigrateCommand命令添加到manager中
+    manager.add_command('db',MigrateCommand)
+
+    if __name__ == '__main__':
+        manager.run()
+    ```
