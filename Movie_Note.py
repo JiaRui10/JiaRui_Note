@@ -1146,6 +1146,15 @@ def user_del(id=None):
 6-7 	评论-收藏管理
 			评论管理
 1）先插入数据到comment表中。
+insert into comment(movie_id,user_id,content,addtime) values(14, 7, '乏味', now());
+insert into comment(movie_id,user_id,content,addtime) values(15, 1, '好看', now());
+insert into comment(movie_id,user_id,content,addtime) values(16, 8, '一般般啦。觉得四驱兄弟好看一点。', now());
+insert into comment(movie_id,user_id,content,addtime) values(17, 4, '最喜欢科比了。', now());
+
+=================
+当插入中文报错，解决方法如下：
+ALTER TABLE `comment` CHANGE `content` `content` VARCHAR(100) CHARACTER SET utf8 NOT NULL;
+=================
 2）关联movie表和user表。
 3）在views.py中。
 @admin.route('/comment/list/<int:page>/', methods=['GET'])
