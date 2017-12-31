@@ -1519,6 +1519,13 @@ def adminloginlog_list(page=None):
 
 	【会员登录日志列表】
 1）往userlog这个表插入一些测试数据。
+insert into userlog(user_id, ip, addtime) values(1, '192.168.4.1', now());
+insert into userlog(user_id, ip, addtime) values(1, '192.168.4.9', now());
+insert into userlog(user_id, ip, addtime) values(4, '192.168.4.7', now());
+insert into userlog(user_id, ip, addtime) values(5, '192.168.4.55', now());
+insert into userlog(user_id, ip, addtime) values(7, '192.168.4.4', now());
+insert into userlog(user_id, ip, addtime) values(8, '192.168.4.2', now());
+insert into userlog(user_id, ip, addtime) values(7, '192.168.4.33', now());
 2）进行列表展示。
 @admin.route('/userloginlog/list/<int:page>/', methods=['GET'])
 @admin_login_req
