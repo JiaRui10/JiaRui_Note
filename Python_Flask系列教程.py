@@ -553,3 +553,340 @@ def my_before_request():
     if session.get('username'):
         g.username = session.get('username')
 # 可以减少后期其他视图函数对数据库进行操作。
+
+
+
+
+    【项目实战】
+1-1     项目结构搭建
+1）创建flask项目，会出现static、templates文件夹，还有根目录下面的zlktqa.py。
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def hello_world():
+    return 'Hello world'
+
+if __name__ == '__main__':
+    app.run()
+2）在根目录下创建config.py。
+import os
+
+DEBUG = True
+
+SECRET_KEY = os.urandom(24)
+
+# 数据库相关配置
+HOSTNAME = '127.0.0.1'
+PORT = '3306'
+DATABASE = 'zlktqa_demo'
+USERNAME = 'root'
+PASSWORD = 'root'
+DB_URI = "mysql+mysqldb://{}:{}@{}:{}/{}?charset=utf8".format(DIALECT,DRIVER,USERNAME,PASSWORD,HOST
+                                                 ,PORT,DATABASE)
+SQLALCHEMY_DATABASE_URI = DB_URI
+
+SQLALCHEMY_TRACK_MODIFICATIONS = False
+3）进入mysql，将zlktqa_demo数据库创建出来。
+create database zlktqa_demo charset utf8;
+4）在zlktqa.py中，导入配置。
+import config
+...
+app.config.from_object(config)
+5）在根目录下创建exts.py，专门用来存放db。
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
+6）在根目录下创建models.py文件，用于存放模型。
+from exts import db
+7）在根目录下创建manage.py文件，用于存放命令。
+from flask_script import Manager
+from flask_migrate import Migrate, MigrateCommand  # 模型到表的迁移
+from zlktqa import app
+from exts import db
+# 等后面模型创建好了，模型也要导入进来
+
+manager = Manager(app)
+
+# 使用Migrate绑定app和db
+migrate = Migrate(app, db)
+
+# 添加迁移脚本的命令到manager中
+manager.add_command('db', MigrateCommand)
+
+if __name__ == '__main__':
+    manager.run()
+
+
+
+1-2     完成导航栏
+编写index.html。
+使用bootstrap cdn、jquery cnd。
+使用bootstrap就是复制粘贴、复制粘贴。
+
+
+
+1-3     父模板抽离
+编写base.html。
+
+
+
+1-4     登录页面完成
+login.html。
+
+在zlktqa.py中。
+@app.route('/login/', methods=['GET', 'POST'])
+def login():
+    if request.method == 'GET':
+        return render_template('login.html')
+    else:
+        pass
+
+
+
+1-5     注册页面完成
+regist.html。
+在zlktqa.py中。
+@app.route('/regist/', methods=['GET', 'POST'])
+def regist():
+    if request.method == 'GET':
+        return render_template('regist.html')
+    else:
+        pass
+
+
+
+1-6     User模型创建
+1）在models.py中。
+class User(db.Model):    
+    __tablename__ = "users"
+        id = db.Column(db.Integer,primary_key=True,autoincrement=True)
+        username = db.Column(db.String(50),nullable=False)
+        telephone = db.Column(db.String(11),nullable=False)
+        _password = db.Column(db.String(100),nullable=False)
+2）将用户模型映射到数据库的表中。
+在manage.py中。
+from models import User
+...
+3）打开终端：
+python manage.py db init        # 初始化迁移环境
+python manage.py db migrate 
+python manage.py db upgrade
+4）在数据库中查看，是否有表生成。
+
+
+
+1-7     注册功能完成
+1）在zlktqa.py中。
+from exts import db
+
+db.init_app(app)
+
+@app.route('/regist/', methods=['GET', 'POST'])
+def regist():
+    if request.method == 'GET':
+        return render_template('regist.html')
+    else:
+        telephone = request.form.get('telephone')
+        username = request.form.get('username')
+        password1 = request.form.get('password1')
+        password2 = request.form.get('password2')
+
+        # 手机号码验证
+        user = User.query.filter(User.telephone == telephone).first()
+        if user:
+            return '该手机已被注册，请更换手机号码！'
+        else:
+            if password1 != password2:
+                return '两次密码不相等，请核对后再填写'
+            else:
+                user = User(
+                    telephone=telephone,
+                    username=username,
+                    password=password1
+                )
+                db.session.add(user)
+                db.session.commit()
+                return redirect(url_for('login'))
+
+
+
+1-8     登录功能完成
+1）在zlktqa.py中。
+@app.route('/login/', methods=['GET', 'POST'])
+def login():
+    if request.method == 'GET':
+        return render_template('login.html')
+    else:
+        telephone = request.form.get('telephone')
+        password = request.form.get('password')
+        user = User.query.filter(
+            User.telephone==telephone,
+            User.password==password,
+        ).first()
+        if user:
+            session['user_id'] = user.id
+            # 如果想在31天内都不需要登录
+            session.permanent = True
+            return redirect(url_for('index'))
+        else:
+            return '手机号码或者密码错误，请确认后登录'
+
+...
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+
+
+1-9         发布问答界面完成
+1）在zlktqa.py中。
+@app.route('/question/', methods=['GET', 'POST'])
+def question():
+    if request.method == 'GET':
+        return render_template('question.html')
+    else:
+        pass
+2）question.html。
+
+
+
+1-10    登录限制
+1）一般把装饰器相关的代码放在一个文件中。创建decorators.py。
+from functools import wraps
+
+def login_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # pass
+        if 'user_id' in session:
+            return func(*args, **kwargs)
+        else:
+            return redirect(url_for('login'))
+    return wrapper
+2）在zlktqa.py中。
+from decorators import login_required
+给需要限制登录的视图函数，加上装饰器。
+
+
+
+1-11    发布问答功能完成
+1）在models.py中。
+from datetime import datetime
+
+class Question(db.Model):
+    __tablename__ = 'question'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    title = db.Column(db.String(100), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    create_time = db.Column(db.DateTime, default=datetime.now())
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    author = db.relationship('User', backref=db.backref('questions'))
+
+2）将用户模型映射到数据库的表中。
+在manage.py中导入Question模型。
+打开终端：
+python manage.py db migrate
+python manager.py db upgrade
+3）在zlktqa.py中。
+@app.route('/question/', methods=['GET', 'POST'])
+@login_required
+def question():
+    if request.method == 'GET':
+        return render_template('question.html')
+    else:
+        title = request.form.get('title')
+        content = request.form.get('content')
+        question = Question(title=title, content=content)
+        user_id = session.get('user_id')
+        user = User.query.filter(User.id == user_id).first()
+        question.author = user
+        db.session.add(question)
+        db.session.commit()
+        return redirect(url_for('index'))
+
+
+
+1-12    首页布局完成
+index.html。
+
+
+
+1-13    首页功能完成
+1）
+@app.route('/')
+def index():
+    context = {
+        # 排序
+        'questions': Question.query.order_by('-create_time').all()
+    }
+    returm render_template('index.html', **context)
+2）在index.html中就不能将数据写死了。
+
+
+
+1-14    问答详情完成
+1）编写detail.html。
+2）
+@app.route('/detail/<int:question_id>/')
+def detail(question_id):
+    question_model = Question.query.filter(Question.id == question_id).first()
+    return render_template('detail.html', question=question_model)
+3）修改detail.html。
+
+
+
+1-15    评论布局完成
+1）编写detail.html。
+2）
+@app.route('/add_answer/', methods=['POST'])
+def add_answer():
+    content = request.form.get('answer_content')
+
+
+
+1-16    评论模型和功能实现
+1）在models.py中。
+class Answer(db.Model):
+    __tablename__ = 'answers'
+    id = db.Column(db.Integer,primary_key=True,autoincrement=True)
+    content = db.Column(db.Text,nullable=False)
+    create_time = db.Column(db.DateTime,default=datetime.datetime.now)
+    question_id = db.Column(db.Integer,db.ForeignKey('question.id'))
+    author_id = db.Column(db.String(100),db.ForeignKey('user.id'))
+
+    question = db.relationship('Question',backref=db.backref('answers',order_by=create_time.desc()))
+    author = db.relationship('UserModel',backref=db.backref('answers'))
+2）将用户模型映射到数据库的表中。
+在manage.py中导入Answer。
+打开终端：
+python manage.py db migrate
+python manage.py db upgrade
+3）打开mysql。查看是否正常生成。
+4）
+@app.route('/add_answer/', methods=['POST'])
+@login_required
+def add_answer():
+    content = request.form.get('answer_content')
+    question_id = request.form.get('question_id')
+
+    answer = Answer(content=content)
+    user_id = session['user_id']
+    user = User.query.filter(User.id == user_id).first()
+    answer.author = user
+    question = Question.query.filter(Question.id == question_id).first()
+    answer.question = question
+    db.session.add(answer)
+    db.session.commit()
+    return redirect(url_for('detail', question_id=question_id))
+5）
+在detail.html中。
+{% for answer in question.answers %}
+    ...
+{% endfor %}
+
+
+
+1-17    评论列表展示
+detail.html中。
