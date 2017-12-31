@@ -1047,6 +1047,16 @@ def preview_edit(id):
 
 6-6 	会员管理
 1）在user表插入12条记录。
+insert into user(name,pwd,email,phone,info,face,uuid,addtime) values('狂战士', '1242', '1241@123.com', '13712345789', '狂战士', '1f411.jpg', 'd32a72bdac524478b7e4f6dfc8394fd1', now());
+insert into user(name,pwd,email,phone,info,face,uuid,addtime) values('剑魂', '1242', '1242@123.com', '13712356719', '剑魂', '1f412.jpg', 'd32a72bdac524478b7e4f6dfc8394fd2', now());
+insert into user(name,pwd,email,phone,info,face,uuid,addtime) values('鬼泣', '1242', '1243@123.com', '13712356729', '鬼泣', '1f413.jpg', 'd32a72bdac524478b7e4f6dfc8394fd3', now());
+insert into user(name,pwd,email,phone,info,face,uuid,addtime) values('阿修罗', '1242', '1244@123.com', '13713456739', '阿修罗', '1f414.jpg', 'd32a72bdac524478b7e4f6dfc8394fd4', now());
+insert into user(name,pwd,email,phone,info,face,uuid,addtime) values('漫游枪手', '1242', '1245@123.com', '13713456749', '漫游枪手', '1f415.jpg', 'd32a72bdac524478b7e4f6dfc8394fd5', now());
+insert into user(name,pwd,email,phone,info,face,uuid,addtime) values('枪炮师', '1242', '1246@123.com', '13712456759', '枪炮师', '1f416.jpg', 'd32a72bdac524478b7e4f6dfc8394fd6', now());
+=================
+当插入中文报错，解决方法如下：
+ALTER TABLE `user` CHANGE `info` `info` VARCHAR(36) CHARACTER SET utf8 NOT NULL;
+=================
 2）将头像拷贝到static/uploads/users目录下
 3）在views.py中。
 # 进行会员列表的分页
