@@ -2070,6 +2070,7 @@ def admin_auth(f):
 		if str(rule) not in urls:
 			abort(404)
 		return f(*args, **kwargs)
+	return decorated_function
 2）给其他需要的路由函数加上装饰器。（登录不需要）
 
 
