@@ -457,6 +457,10 @@ pip install MySQL_python‑1.2.5‑cp27‑none‑win_amd64.whl
     if __name__ == '__main__':
         manager.run()
     ```
+要加入笔记的东西：
+db.config.from_object(config)
+db.init_app(app)
+
 
 
 ### cookie：
